@@ -12,10 +12,16 @@ class StateMachine:
                 states_count: int, 
                 initial_state: int, 
                 final_states: Set[int], 
-                state_transition: Set[Tuple[int, str, int]]):
+                state_transition: Set[Tuple[int, str, int]],
+                states_labels: List[str]=None):
         self._alphabet = sorted(alphabet)
         self._alphabet_size = len(self._alphabet)
         self._symbol_to_index = dict( zip(self._alphabet, range(self._alphabet_size)) )
+
+        if states_labels is not None:
+            self._states_labels = states_labels
+        else:
+            self._states_labels = [f"q_{q}" for q in range(states_count)]
 
         self._states_count = states_count
         self._initial_state = initial_state
@@ -54,6 +60,7 @@ class StateMachine:
                         stock = self._states_count
                         self._stock_states.add(stock)
                         matrix.append(self._alphabet_size*[stock])  # add loops into stock state 
+                        self._states_labels.append(f"q_{stock}")
                         self._states_count += 1
 
                     matrix[q][c] = stock        
@@ -93,10 +100,7 @@ class StateMachine:
                 
                 queue.put((q2, new_s))
 
-    def render(self, states_labels: List[str]=None, with_stock_state: bool=True) -> Image.Image:
-        if states_labels is None:
-            states_labels = [f"q_{q}" for q in range(self._states_count)]
-
+    def render(self, with_stock_state: bool=True) -> Image.Image:
         f = Digraph('finite_state_machine', format="png")
         f.attr(rankdir='LR')
 
@@ -105,7 +109,7 @@ class StateMachine:
                 f.attr('node', shape='doublecircle')
             else:
                 f.attr('node', shape='circle')
-            f.node(states_labels[q])
+            f.node(self._states_labels[q])
 
         # nodes
         draw_state(self._initial_state)        
@@ -128,12 +132,12 @@ class StateMachine:
             for q2, label in enumerate(labels):
                 if len(label) != 0:
                     label = ", ".join(label)
-                    f.edge(states_labels[q1], states_labels[q2], label=label)
+                    f.edge(self._states_labels[q1], self._states_labels[q2], label=label)
 
         # draw arrow to initial state
         f.attr('node', shape='none', height='0', width='0')
         f.node('')
-        f.edge('', states_labels[self._initial_state])
+        f.edge('', self._states_labels[self._initial_state])
 
         byte_array = f.pipe(format="png")
         return Image.open(io.BytesIO(byte_array))
@@ -159,12 +163,13 @@ class StateMachine:
         states_count = len(reachable)
         initial_state = old_to_new_state_map[self._initial_state]
         final_states = {old_to_new_state_map[q] for q in (self._final_states & reachable)}
+        states_labels = [self._states_labels[q] for q in sorted(reachable)]
         state_transition = set()
         for q1 in range(states_count):
             for c_index, c in enumerate(self._alphabet):
                 q2 = old_to_new_state_map[self._state_transition_matrix[new_to_old_state_map[q1]][c_index]]
                 state_transition.add((q1, c, q2))
-        return StateMachine(alphabet, states_count, initial_state, final_states, state_transition)
+        return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)
 
     def factor_state_machine(self, equivalence_classes: List[Set[int]]) -> StateMachine:
         # group states to equivalence classes
@@ -180,13 +185,14 @@ class StateMachine:
         initial_state = old_to_new_state_map[self._initial_state]
         final_states = set(q_new for q_new, clss in enumerate(equivalence_classes) if all(map(lambda q: q in self._final_states, clss)))
         state_transition = set()
+        states_labels = [",".join(self._states_labels[q] for q in clss) for clss in equivalence_classes]
         for q1, clss in enumerate(equivalence_classes):
             q0 = clss.pop(); clss.add(q0)
             for c_index, c in enumerate(alphabet):                
                 q2 = old_to_new_state_map[self._state_transition_matrix[q0][c_index]]
                 if all(map(lambda q: old_to_new_state_map[self._state_transition_matrix[q][c_index]] == q2, clss)):
                     state_transition.add((q1, c, q2))
-        return StateMachine(alphabet, states_count, initial_state, final_states, state_transition)
+        return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)
 
     def get_equivalent_states(self) -> List[Set[int]]:
         # build inverse state transition function
@@ -277,4 +283,10 @@ class StateMachine:
             initial_state = description["initial_state"]
             final_states = set(description["final_states"])
             state_transition = {tuple(x) for x in description["state_transition_function"]}
-            return StateMachine(alphabet, states_count, initial_state, final_states, state_transition)
+            states_labels = description.get("states_labels", None)
+            return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)
+
+if __name__ == "__main__":
+    sm = StateMachine.load_from_file("../3/test5.json")
+    sm.render().show()
+    sm.minimize().render().show()

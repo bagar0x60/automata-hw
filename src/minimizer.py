@@ -4,13 +4,7 @@ import os
 from shutil import copyfile
 
 if len(sys.argv) < 2:
-    print("USAGE: minimizer [-d] <sm1> <sm2> ...")
-
-if "-d" in sys.argv:
-    is_draw = True
-    sys.argv.remove("-d")
-else:
-    is_draw = False
+    print("USAGE: minimizer <sm1> [<sm2>] [<sm3>] ...")
 
 for sm_filename in sys.argv[1:]:
     assert os.path.isfile(sm_filename)
@@ -25,6 +19,5 @@ for sm_filename in sys.argv[1:]:
     else:
         sm_minimized.save_to_file(sm_minimized_filename)
     
-    if is_draw:
-        sm.render().save(f"{name}.png")
-        sm_minimized.render().save(f"{name}_minimized.png")
+    sm.render().save(f"{name}.png")
+    sm_minimized.render().save(f"{name}_minimized.png")
