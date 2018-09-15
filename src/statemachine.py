@@ -93,7 +93,7 @@ class StateMachine:
                 
                 queue.put((q2, new_s))
 
-    def draw(self, states_labels: List[str]=None, with_stock_state: bool=True) -> Image.Image:
+    def render(self, states_labels: List[str]=None, with_stock_state: bool=True) -> Image.Image:
         if states_labels is None:
             states_labels = [f"q_{q}" for q in range(self._states_count)]
 
@@ -234,6 +234,40 @@ class StateMachine:
         sm = self.delete_unreachable_states()
         return sm.factor_state_machine(sm.get_equivalent_states())
 
+    def get_states_count(self, with_stock_state: bool=True) -> int:
+        if with_stock_state:
+            return self._states_count
+        else:
+            return self._states_count - len(self._stock_states)
+
+    def save_to_file(self, filename: str) -> None:
+        """
+        {
+            "alphabet": ["a", "b", "c"],
+            "states_count": 5,
+            "initial_state": 0,
+            "final_states": [4],
+            "state_transition_function": [
+                [0, "a", 0], [0, "b", 1], [0, "c", 0],
+                [1, "a", 0], [1, "b", 3], [1, "c", 2],
+                [2, "a", 0], [2, "b", 1], [2, "c", 4],
+                [3, "a", 4], [3, "b", 3], [3, "c", 2],
+                [4, "a", 4], [4, "b", 4], [4, "c", 4]
+            ]
+        }
+        """
+        sm_json = dict()
+        sm_json["alphabet"] = self._alphabet
+        sm_json["states_count"] = self._states_count
+        sm_json["initial_state"] = self._initial_state
+        sm_json["final_states"] = list(self._final_states)
+        sm_json["state_transition_function"] = [    [q, c, self._state_transition_matrix[q][c_index]] 
+                                                    for q in range(self._states_count) 
+                                                    for c_index, c in enumerate(self._alphabet)]
+
+        with open(filename, "w") as f:
+            json.dump(sm_json, f)
+
     @staticmethod
     def load_from_file(filename: str) -> StateMachine:
         with open(filename) as f:
@@ -244,19 +278,3 @@ class StateMachine:
             final_states = set(description["final_states"])
             state_transition = {tuple(x) for x in description["state_transition_function"]}
             return StateMachine(alphabet, states_count, initial_state, final_states, state_transition)
-
-
-if __name__ == '__main__':
-    sm1 = StateMachine.load_from_file("1/sm1.json")
-    sm2 = StateMachine.load_from_file("1/sm2.json")
-    sm3 = StateMachine.load_from_file("1/sm3.json")
-    #sm3.save_image("sm3")
-    sm2.minimize().draw(with_stock_state=True).show()
-    print(sm2.get_equivalent_states())
-    for word in sm2.list_words_lexicographical(20):
-        print(word)
-    print(sm2.is_word_accepted("abcaabbabcbcabab"))
-    #sm3.draw(with_stock_state=True)
-    #input()
-    #sm3.draw(with_stock_state=True, states_labels=['A', 'B', 'C'])
-    #sm_minimize.draw(states_labels=list("ABCDEFG"))
