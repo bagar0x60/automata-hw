@@ -287,6 +287,6 @@ class StateMachine:
             return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)
 
 if __name__ == "__main__":
-    sm = StateMachine.load_from_file("../3/test5.json")
-    sm.render().show()
+    sm = StateMachine.load_from_file("../1/sm3.json")
+    sm.render().save("../1/sm3.png")
     sm.minimize().render().show()
