@@ -2,3 +2,9 @@
 *.pdf
 *_minimized*
 *.pyc
+.vscode
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.gz
