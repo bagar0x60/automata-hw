@@ -1,5 +1,3 @@
-# automata-hw2
-
 ## Запуск скрипта
 Для запуска необходим `python 3.7` и пакеты `pillow` и `graphviz`.
 Установка пакетов при наличии `pip`:
@@ -7,6 +5,12 @@
 # pip install pillow
 # pip install graphviz
 ```
+Чтобы рисовать автоматы, надо установить и сам `graphviz`, а не только `python` пакет. На убунту:
+```bash
+apt-get install graphviz
+```
+На Windows надо скачать [установщик](https://graphviz.gitlab.io/_pages/Download/Download_windows.html) и после установки добавить путь до `graphviz/bin` в `PATH`.
+
 Описание конечных автоматов хранится в `json` файлах в папках `/1` и `/3`. Чтобы минимизировать автомат, необходимо запустить скрипт `/src/minimizer.py`:
 ```bash
 cd /src
