@@ -30,8 +30,8 @@ $$
 
 (c) буква $c$ не встречается “левее” буквы $b$ ни в одном слове
 $$
-    L = \{a^n b \omega \mid \omega \in \Sigma^*, n \in \mathbb{Z}_{\ge 0} \} \cup
-    \{ a^n \mid n \in \mathbb{Z}_{\ge 0} \}
+    L = \{\omega_1\omega_2 \mid \omega_1 \in \{a, b\}^*,
+    \omega_2 \in \{a, c\}^* \}
 $$
 \begin{figure}[h]
     \includegraphics[width=0.5\linewidth]{sm3.png}
@@ -63,17 +63,16 @@ $$
 
     (b)
     \begin{align*}
-        q_0 &\nsim_{\epsilon} q_1, q_3, q_5; q_0 \nsim_{a} q_2; q_0 \nsim_{b} q_4; q_0 \nsim_{c} q_6   \\
+        q_0 &\nsim_{\epsilon} q_1, q_3, q_5; q_0 \nsim_{c} q_2, q_4; q_0 \nsim_{a} q_6   \\
         q_1 &\nsim_{\epsilon} q_2, q_4, q_6; q_1 \nsim_{a} q_3, q_5 \\
         q_2 &\nsim_{\epsilon} q_3, q_5; q_2 \nsim_{a} q_4, q_6 \\
         q_3 &\nsim_{\epsilon} q_4, q_6; q_3 \nsim_{b} q_5 \\
-        q_4 &\nsim_{\epsilon} q_5; q_2 \nsim_{b} q_6 \\
+        q_4 &\nsim_{\epsilon} q_5; q_4 \nsim_{b} q_6 \\
         q_5 &\nsim_{\epsilon} q_6
     \end{align*}
-
     (c)
     \begin{align*}
-        q_0 &\nsim_{c} q_1; q_0 \nsim_{\epsilon} q_2 \\
+        q_0 &\nsim_{b} q_1; q_0 \nsim_{\epsilon} q_2 \\
         q_1 &\nsim_{\epsilon} q_2
     \end{align*}
 \end{proof}
