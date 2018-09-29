@@ -1,11 +1,19 @@
 from __future__ import annotations
-from typing import Set, List, Tuple, Generator
+from typing import Set, List, Tuple, Generator, TypeVar
 from queue import SimpleQueue
 from graphviz import Digraph
 from PIL import Image
 import json
 import copy
 import io
+
+T = TypeVar('T') 
+
+def sget(s: Set[T]) -> T:
+    result = s.pop()
+    s.add(result)
+    return result
+
 
 class StateMachine:
     def __init__(self, alphabet: Set[str],
@@ -17,6 +25,7 @@ class StateMachine:
         self._alphabet = sorted(alphabet)
         self._alphabet_size = len(self._alphabet)
         self._symbol_to_index = dict( zip(self._alphabet, range(self._alphabet_size)) )
+        self._symbol_to_index[""] = self._alphabet_size
 
         if states_labels is not None:
             self._states_labels = states_labels
@@ -28,13 +37,29 @@ class StateMachine:
         self._final_states = final_states
         self._stock_states = set()
         self._state_transition_matrix = self._build_state_transition_matrix(state_transition)
+        self._is_deterministic = self._check_if_deterministic()
 
-    def _build_state_transition_matrix(self, state_transition: Set[Tuple[int, str, int]]) -> List[List[int]]:
-        matrix = [self._alphabet_size*[None] for _ in range(self._states_count)]
+    def _alphabet_iter(self, with_epsilon: bool=True, with_char: bool=True):
+        for (c_index, c) in enumerate(self._alphabet):
+            yield (c_index, c) if with_char else c_index  
+
+        if with_epsilon:
+            yield (self._alphabet_size, "") if with_char else self._alphabet_size
+                   
+    def _check_if_deterministic(self) -> bool:
+        for q1 in range(self._states_count):
+            for c_index, c in self._alphabet_iter(with_char=True):
+                if c == "" and self._state_transition_matrix[q1][c_index] != {q1} or\
+                    len(self._state_transition_matrix[q1][c_index]) > 1:
+                    return False
+        return True                    
+
+    def _build_state_transition_matrix(self, state_transition: Set[Tuple[int, str, int]]) -> List[List[Set[int]]]:
+        matrix = [[set() for _ in range(self._alphabet_size + 1)] for _ in range(self._states_count)]
         
         for (q1, c, q2) in state_transition:
             c_index = self._symbol_to_index[c]
-            matrix[q1][c_index] = q2
+            matrix[q1][c_index].add(q2)
 
         # find stock states
         stock = None
@@ -43,8 +68,8 @@ class StateMachine:
                 continue
 
             is_stock = True
-            for c_index in range(self._alphabet_size):
-                if matrix[q1][c_index] not in {q1, None}:
+            for c_index in range(self._alphabet_size + 1):
+                if len(matrix[q1][c_index] - {q1}) > 0:
                     is_stock = False
                     break
             if is_stock:
@@ -53,29 +78,51 @@ class StateMachine:
 
         # add arrows to stock state and stock state themself if needed   
         for q in range(self._states_count):
-            for c in range(self._alphabet_size):
-                if matrix[q][c] is None:
+            for c_index in range(self._alphabet_size + 1):
+                if len(matrix[q][c_index]) == 0:
+                    if c_index == self._symbol_to_index[""]:
+                        # transition on epsilon symbol
+                        matrix[q][c_index].add(q)
+                        continue
+
                     if stock is None:
                         # no stock was found in previous block, so artificial needed
                         stock = self._states_count
                         self._stock_states.add(stock)
-                        matrix.append(self._alphabet_size*[stock])  # add loops into stock state 
+                        matrix.append([{stock} for _ in range(self._alphabet_size + 1)])  # add loops into stock state 
                         self._states_labels.append(f"q_{stock}")
                         self._states_count += 1
 
-                    matrix[q][c] = stock        
+                    matrix[q][c_index].add(stock)       
         return matrix
 
+    def is_deterministic(self) -> bool:
+        return self._is_deterministic
+
+    def delete_epsilon_transitions(self) -> StateMachine:
+        pass
+
+    def determinize(self) -> StateMachine:
+        pass
+
+    def _deterministic_only(self) -> None:
+        if not self._is_deterministic:
+            raise Exception("This method can be called on deterministic finit automatas only")
+
     def is_word_accepted(self, word: str) -> bool:
+        self._deterministic_only()
+
         q = self._initial_state
         for c in word:
             if c not in self._alphabet:
                 return False
-            q = self._state_transition_matrix[q][self._symbol_to_index[c]]
+            q = sget(self._state_transition_matrix[q][self._symbol_to_index[c]])
         
         return q in self._final_states
             
     def list_words_lexicographical(self, n: int) -> Generator[str, None, None]:
+        self._deterministic_only()
+        
         if len(self._final_states) == 0:
             return
 
@@ -86,8 +133,8 @@ class StateMachine:
         
         while not (n <= 0 or queue.empty()):
             q1, s = queue.get()
-            for (c_index, c) in enumerate(self._alphabet):
-                q2 = self._state_transition_matrix[q1][c_index]
+            for (c_index, c) in self._alphabet_iter(with_epsilon=False):
+                q2 = sget(self._state_transition_matrix[q1][c_index])
 
                 if q2 in self._stock_states:
                     continue
@@ -121,13 +168,17 @@ class StateMachine:
         # edges
         for q1 in range(self._states_count):
             labels = [[] for _ in range(self._states_count)]
-            for c_index, c in enumerate(self._alphabet):
-                q2 = self._state_transition_matrix[q1][c_index]
+            for c_index, c in self._alphabet_iter(with_char=True):
+                if c == "":
+                    if self._state_transition_matrix[q1][c_index] == {q1}:
+                        continue
+                    c = "ε"
 
-                if not with_stock_state and q2 in self._stock_states:
-                    continue
+                for q2 in self._state_transition_matrix[q1][c_index]:
+                    if not with_stock_state and q2 in self._stock_states:
+                        continue
 
-                labels[q2].append(c)
+                    labels[q2].append(c)
         
             for q2, label in enumerate(labels):
                 if len(label) != 0:
@@ -149,11 +200,11 @@ class StateMachine:
         stack = [self._initial_state]
         while stack:
             q1 = stack.pop()
-            for c_index in range(len(self._alphabet)):
-                q2 = self._state_transition_matrix[q1][c_index]
-                if q2 not in reachable:
-                    reachable.add(q2)
-                    stack.append(q2)
+            for c_index, _ in self._alphabet_iter():
+                for q2 in self._state_transition_matrix[q1][c_index]: 
+                    if q2 not in reachable:
+                        reachable.add(q2)
+                        stack.append(q2)
         
         # build new state machine without unreachable states
         new_to_old_state_map = sorted(reachable)
@@ -166,15 +217,17 @@ class StateMachine:
         states_labels = [self._states_labels[q] for q in sorted(reachable)]
         state_transition = set()
         for q1 in range(states_count):
-            for c_index, c in enumerate(self._alphabet):
-                q2 = old_to_new_state_map[self._state_transition_matrix[new_to_old_state_map[q1]][c_index]]
-                state_transition.add((q1, c, q2))
+            for c_index, c in self._alphabet_iter():
+                for old_q2 in self._state_transition_matrix[new_to_old_state_map[q1]][c_index]:
+                    q2 = old_to_new_state_map[old_q2]
+                    state_transition.add((q1, c, q2))
         return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)
 
     def factor_state_machine(self, equivalence_classes: List[Set[int]]) -> StateMachine:
         # group states to equivalence classes
         # treat equivalence classes as new states 
-        
+        self._deterministic_only()
+
         old_to_new_state_map = self._states_count*[None]
         for q_new, clss in enumerate(equivalence_classes):
             for q_old in clss:
@@ -188,18 +241,21 @@ class StateMachine:
         states_labels = [",".join(self._states_labels[q] for q in clss) for clss in equivalence_classes]
         for q1, clss in enumerate(equivalence_classes):
             q0 = clss.pop(); clss.add(q0)
-            for c_index, c in enumerate(alphabet):                
-                q2 = old_to_new_state_map[self._state_transition_matrix[q0][c_index]]
-                if all(map(lambda q: old_to_new_state_map[self._state_transition_matrix[q][c_index]] == q2, clss)):
+            for c_index, c in enumerate(alphabet):   
+                q2_old = sget(self._state_transition_matrix[q0][c_index])
+                q2 = old_to_new_state_map[q2_old]
+                if all(map(lambda q: old_to_new_state_map[sget(self._state_transition_matrix[q][c_index])] == q2, clss)):
                     state_transition.add((q1, c, q2))
         return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)
 
     def get_equivalent_states(self) -> List[Set[int]]:
+        self._deterministic_only()
+
         # build inverse state transition function
         inverse_state_transition = [[[] for _ in range(self._alphabet_size)] for _ in range(self._states_count)]
         for q1 in range(self._states_count):
             for c_index in range(self._alphabet_size):
-                q2 = self._state_transition_matrix[q1][c_index]
+                q2 = sget(self._state_transition_matrix[q1][c_index])
                 inverse_state_transition[q2][c_index].append(q1)
         
         # (q1, q2) q1 > q2
@@ -237,6 +293,8 @@ class StateMachine:
         return equivalence_classes          
 
     def minimize(self) -> StateMachine:
+        self._deterministic_only()
+
         sm = self.delete_unreachable_states()
         return sm.factor_state_machine(sm.get_equivalent_states())
 
@@ -267,9 +325,10 @@ class StateMachine:
         sm_json["states_count"] = self._states_count
         sm_json["initial_state"] = self._initial_state
         sm_json["final_states"] = list(self._final_states)
-        sm_json["state_transition_function"] = [    [q, c, self._state_transition_matrix[q][c_index]] 
-                                                    for q in range(self._states_count) 
-                                                    for c_index, c in enumerate(self._alphabet)]
+        sm_json["state_transition_function"] = [    [q1, c, q2] 
+                                                    for q1 in range(self._states_count) 
+                                                    for c_index, c in self._alphabet_iter()
+                                                    for q2 in self._state_transition_matrix[q1][c_index]]
 
         with open(filename, "w") as f:
             json.dump(sm_json, f)
@@ -286,7 +345,12 @@ class StateMachine:
             states_labels = description.get("states_labels", None)
             return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)
 
+
 if __name__ == "__main__":
-    sm = StateMachine.load_from_file("../1/sm3.json")
-    sm.render().save("../1/sm3.png")
-    sm.minimize().render().show()
+    sm = StateMachine.load_from_file("../3/test.json")
+    sm.render().show()
+    sm.delete_unreachable_states().render().show()
+    sm.delete_unreachable_states().save_to_file("test.json")
+
+    print(sm.is_deterministic())
+    print(sm.is_word_accepted("1122"))
