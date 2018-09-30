@@ -30,7 +30,7 @@ class StateMachine:
         if states_labels is not None:
             self._states_labels = states_labels
         else:
-            self._states_labels = [f"q_{q}" for q in range(states_count)]
+            self._states_labels = self._build_default_states_labels(states_count)
 
         self._states_count = states_count
         self._initial_state = initial_state
@@ -39,16 +39,17 @@ class StateMachine:
         self._state_transition_matrix = self._build_state_transition_matrix(state_transition)
         self._is_deterministic = self._check_if_deterministic()
 
-    def _alphabet_iter(self, with_epsilon: bool=True, with_char: bool=True):
-        for (c_index, c) in enumerate(self._alphabet):
-            yield (c_index, c) if with_char else c_index  
-
+    def _alphabet_iter(self, with_epsilon: bool=True):
+        yield from enumerate(self._alphabet)
         if with_epsilon:
-            yield (self._alphabet_size, "") if with_char else self._alphabet_size
-                   
+            yield (self._alphabet_size, "")
+
+    def _build_default_states_labels(self, count: int) -> List[str]:
+        return [f"q_{q}" for q in range(count)]
+            
     def _check_if_deterministic(self) -> bool:
         for q1 in range(self._states_count):
-            for c_index, c in self._alphabet_iter(with_char=True):
+            for c_index, c in self._alphabet_iter():
                 if c == "" and self._state_transition_matrix[q1][c_index] != {q1} or\
                     len(self._state_transition_matrix[q1][c_index]) > 1:
                     return False
@@ -96,18 +97,129 @@ class StateMachine:
                     matrix[q][c_index].add(stock)       
         return matrix
 
+    def _build_inverse_state_transition_matrix(self, state_transition_matrix=None) -> List[List[Set[int]]]:
+        if state_transition_matrix is None:
+            state_transition_matrix = self._state_transition_matrix
+
+        inverse_matrix = [[set() for _ in self._alphabet_iter()] for _ in range(self._states_count)]
+        for q1 in range(self._states_count):
+            for c_index, _ in self._alphabet_iter():
+                for q2 in state_transition_matrix[q1][c_index]:
+                    inverse_matrix[q2][c_index].add(q1)
+        return inverse_matrix
+
     def is_deterministic(self) -> bool:
         return self._is_deterministic
 
     def delete_epsilon_transitions(self) -> StateMachine:
-        pass
+        state_transition_matrix = copy.deepcopy(self._state_transition_matrix)
+        final_states = copy.deepcopy(self._final_states)
+        eps_index = self._symbol_to_index[""]
 
-    def determinize(self) -> StateMachine:
-        pass
+        inverse_transition = self._build_inverse_state_transition_matrix()
+
+        # 1. Transitive closure
+        # Transitive closure of subgraph where only epsilon edges left
+        # BFS
+
+        for q0 in range(self._states_count):
+            queue = SimpleQueue()
+            queue.put(q0)
+            visited = {q0}
+
+            while not queue.empty():
+                q2 = queue.get()
+                for q1 in inverse_transition[q2][eps_index]:
+                    if q1 not in visited:
+                        visited.add(q1)
+                        queue.put(q1)
+                        state_transition_matrix[q1][eps_index].add(q0)
+        
+        inverse_transition = self._build_inverse_state_transition_matrix(state_transition_matrix)
+
+        # 2. Update final states
+
+        for q2 in self._final_states:
+            for q1 in inverse_transition[q2][eps_index]:
+                final_states.add(q1)
+        
+        # 3. Add transitive edges
+                    
+        for q2 in range(self._states_count):
+            for q1 in inverse_transition[q2][eps_index]:
+                for (c_index, _) in self._alphabet_iter():                    
+                    state_transition_matrix[q1][c_index].update(state_transition_matrix[q2][c_index])
+
+        # 4. Delete epsilone transitions
+
+        for q1 in range(self._states_count):
+            state_transition_matrix[q1][eps_index] = {q1}
+        
+        # Form result - new state machine
+
+        alphabet = copy.deepcopy(self._alphabet)
+        states_count = self._states_count
+        initial_state = self._initial_state
+        states_labels = copy.deepcopy(self._states_labels)
+        state_transition = {tuple(t) for t in 
+                                self._state_transition_matrix_to_triples_list(transition_matrix=state_transition_matrix) }
+        return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)
+
+    def _determinize_without_epsilon_transitions(self) -> StateMachine:
+        # implying that no nontrivial (not into itself) epsilon transition exists
+
+        q0 = (self._initial_state, )
+        new_states = {q0}
+        new_transitions = []
+
+        queue = SimpleQueue()
+        queue.put(q0)
+
+        while not queue.empty():
+            q1 = queue.get()
+            for c_index, c in self._alphabet_iter():
+                q2 = set()
+                for q1n in q1:
+                    q2.update(self._state_transition_matrix[q1n][c_index])
+                q2 -= self._stock_states
+
+                if len(q2) == 0:
+                    continue
+
+                q2 = tuple(sorted(q2))
+
+                new_transitions.append((q1, c, q2))
+                if q2 not in new_states:
+                    queue.put(q2)
+                    new_states.add(q2)
+        
+        new_states = list(new_states)
+        state_to_index = dict(zip(new_states, range(len(new_states))))
+
+        # Form result - new state machine
+        
+        alphabet = copy.deepcopy(self._alphabet)
+        states_count = len(new_states)
+        initial_state = new_states.index((self._initial_state, ))
+        final_states = {i for i, q1 in enumerate(new_states) if len(set(q1) & self._final_states) != 0}
+        state_transition = {(state_to_index[q1], c, state_to_index[q2]) for (q1, c, q2) in new_transitions}
+
+        states_labels = []
+        for q1 in new_states:
+            if len(q1) == 1:
+                label = self._states_labels[q1[0]]
+            else:
+                label = "{" + ",".join(self._states_labels[q1n] for q1n in q1) + "}"
+            states_labels.append(label)
+
+        return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)         
+
+    def determinize(self):
+        return self.delete_epsilon_transitions()._determinize_without_epsilon_transitions()
 
     def _deterministic_only(self) -> None:
         if not self._is_deterministic:
-            raise Exception("This method can be called on deterministic finit automatas only")
+            raise Exception("This method can be called on deterministic finite automata only")
 
     def is_word_accepted(self, word: str) -> bool:
         self._deterministic_only()
@@ -168,7 +280,7 @@ class StateMachine:
         # edges
         for q1 in range(self._states_count):
             labels = [[] for _ in range(self._states_count)]
-            for c_index, c in self._alphabet_iter(with_char=True):
+            for c_index, c in self._alphabet_iter():
                 if c == "":
                     if self._state_transition_matrix[q1][c_index] == {q1}:
                         continue
@@ -249,15 +361,8 @@ class StateMachine:
         return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)
 
     def get_equivalent_states(self) -> List[Set[int]]:
-        self._deterministic_only()
+        inverse_state_transition = self._build_inverse_state_transition_matrix()
 
-        # build inverse state transition function
-        inverse_state_transition = [[[] for _ in range(self._alphabet_size)] for _ in range(self._states_count)]
-        for q1 in range(self._states_count):
-            for c_index in range(self._alphabet_size):
-                q2 = sget(self._state_transition_matrix[q1][c_index])
-                inverse_state_transition[q2][c_index].append(q1)
-        
         # (q1, q2) q1 > q2
         queue = SimpleQueue()
         marked = [q1*[False] for q1 in range(self._states_count)]
@@ -304,6 +409,20 @@ class StateMachine:
         else:
             return self._states_count - len(self._stock_states)
 
+    def _state_transition_matrix_to_triples_list(self, transition_matrix=None, alphabet=None):
+        if transition_matrix is None:
+            transition_matrix = self._state_transition_matrix
+        if alphabet is None:
+            alphabet = self._alphabet
+
+        result = []
+        if len(transition_matrix) > 0:
+            for q1 in range(len(transition_matrix)):
+                for c_index, c in enumerate(alphabet + [""]):
+                    for q2 in transition_matrix[q1][c_index]:
+                        result.append([q1, c, q2])
+        return result
+
     def save_to_file(self, filename: str) -> None:
         """
         {
@@ -325,13 +444,18 @@ class StateMachine:
         sm_json["states_count"] = self._states_count
         sm_json["initial_state"] = self._initial_state
         sm_json["final_states"] = list(self._final_states)
-        sm_json["state_transition_function"] = [    [q1, c, q2] 
-                                                    for q1 in range(self._states_count) 
-                                                    for c_index, c in self._alphabet_iter()
-                                                    for q2 in self._state_transition_matrix[q1][c_index]]
+        sm_json["state_transition_function"] = self._state_transition_matrix_to_triples_list()
 
         with open(filename, "w") as f:
             json.dump(sm_json, f)
+
+    def set_labels(self, labels: List[str]=None) -> None:
+        # this method is only mutator of this class
+        # maybe return new StateMachine insted?
+        if labels is None:
+            self._states_labels = self._build_default_states_labels(self._states_count)
+        else:
+            self._states_labels = labels
 
     @staticmethod
     def load_from_file(filename: str) -> StateMachine:
@@ -346,11 +470,46 @@ class StateMachine:
             return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)
 
 
-if __name__ == "__main__":
-    sm = StateMachine.load_from_file("../3/test.json")
-    sm.render().show()
-    sm.delete_unreachable_states().render().show()
-    sm.delete_unreachable_states().save_to_file("test.json")
+def build_state_machine_for_words_list(words: List[str]) -> StateMachine:
+    
+    states_count = 1
+    initial_state = 0
+    state_transition = set()
+    final_states = set()
 
-    print(sm.is_deterministic())
-    print(sm.is_word_accepted("1122"))
+    for word in sorted(words):
+        current_state = initial_state
+        for c in word:
+            state_transition.add((current_state, c, states_count))            
+            current_state = states_count
+            states_count += 1
+        final_states.add(current_state)
+
+    alphabet = {c for word in words for c in word}
+     
+    return StateMachine(alphabet, states_count, initial_state, final_states, state_transition)
+
+if __name__ == "__main__":
+    # sm = StateMachine.load_from_file("../3/test.json")
+    keywords = [
+        '_',	'abstract',	'alignof',	'as',	'become',
+        'box',	'break',	'const',	'continue',	'crate',
+        'do',	'else',	'enum',	'extern',	'false',
+        'final',	'fn',	'for',	'if',	'impl',
+        'in',	'let',	'loop',	'macro',	'match',
+        'mod',	'move',	'mut',	'offsetof',	'override',
+        'priv',	'proc',	'pub',	'pure',	'ref',
+        'return',	'Self',	'self',	'sizeof',	'static',
+        'struct',	'super',	'trait', 'true',	'type',
+        'typeof',	'unsafe',	'unsized',	'use',	'virtual',
+        'where',	'while',	'yield'
+    ]
+    sm_keywords = build_state_machine_for_words_list(keywords)
+
+    sm_keywords.save_to_file("../HW3/1/keywords.json")
+
+    #sm_keywords.render(with_stock_state=False).save("undeterminized.png")
+    sm_keywords = sm_keywords.determinize().minimize()
+    print(sm_keywords.get_states_count())
+    sm_keywords.set_labels()
+    #sm_keywords.render(with_stock_state=False).save('test.png')
