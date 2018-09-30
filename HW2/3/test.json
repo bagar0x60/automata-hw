@@ -1,0 +1,14 @@
+{
+    "alphabet": ["a", "b"],
+    "states_count": 6,
+    "initial_state": 0,
+    "final_states": [1, 2, 4],
+    "state_transition_function": [
+        [0, "a", 1], [0, "a", 2],[0, "a", 3],
+        [1, "b", 4],
+        [3, "b", 5],
+        [4, "b", 4],
+        [5, "a", 2], [5, "a", 3]
+    ],
+    "states_labels": ["A", "B", "C", "D", "E", "F", "G", "H"]
+}
