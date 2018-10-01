@@ -28,26 +28,23 @@ class Counter:
 
 class StateMachine:
     def __init__(self, 
-                states_count: int, 
                 initial_state: int, 
                 final_states: Set[int], 
                 state_transition: Set[Tuple[int, str, int]],
-                states_labels: List[str]=None,
-                alphabet: Set[str]=None):
-        if alphabet is None:
-            self._alphabet = self._derive_alphabet(state_transition)
-        else:
-            self._alphabet = sorted(alphabet)
+                alphabet: Set[str]=None,
+                states_count: int=None,
+                states_labels: List[str]=None):
+        self._alphabet = self._derive_alphabet(state_transition)\
+                                if alphabet is None else sorted(alphabet)
+        self._states_count = self._derive_states_count(state_transition, final_states, initial_state)\
+                                if states_count is None else states_count
+        self._states_labels = self._build_default_states_labels(self._states_count)\
+                                if states_labels is None else states_labels
+
         self._alphabet_size = len(self._alphabet)
         self._symbol_to_index = dict( zip(self._alphabet, range(self._alphabet_size)) )
         self._symbol_to_index[""] = self._alphabet_size
-
-        if states_labels is not None:
-            self._states_labels = states_labels
-        else:
-            self._states_labels = self._build_default_states_labels(states_count)
-
-        self._states_count = states_count
+        
         self._initial_state = initial_state
         self._final_states = final_states
         self._stock_states = set()
@@ -60,6 +57,13 @@ class StateMachine:
             if c != '':
                 alphabet.add(c)
         return sorted(alphabet)
+
+    def _derive_states_count(self,  state_transition: Set[Tuple[int, str, int]], 
+                                    final_states: Set[int], 
+                                    initial_state: int) -> int:
+        final_max = max(final_states)
+        transition_max = max(map(lambda t: max(t[0], t[2]), state_transition))
+        return max(final_max, transition_max, initial_state) + 1
 
     def _alphabet_iter(self, with_epsilon: bool=True):
         yield from enumerate(self._alphabet)
@@ -174,10 +178,16 @@ class StateMachine:
         # 3. Add transitive edges
                     
         for q2 in range(self._states_count):
+            # (q1, eps, q2) and (q2, c, q3) => (q1, c, q3)
             for q1 in inverse_transition[q2][eps_index]:
                 for (c_index, _) in self._alphabet_iter():                    
                     state_transition_matrix[q1][c_index].update(state_transition_matrix[q2][c_index])
 
+            # (q1, c, q2) and (q2, eps, q3) => (q1, c, q3)
+            for (c_index, _) in self._alphabet_iter():
+                for q1 in inverse_transition[q2][c_index]:                                    
+                    state_transition_matrix[q1][c_index].update(state_transition_matrix[q2][eps_index])
+         
         # 4. Delete epsilone transitions
 
         for q1 in range(self._states_count):
@@ -191,7 +201,8 @@ class StateMachine:
         states_labels = copy.deepcopy(self._states_labels)
         state_transition = {tuple(t) for t in 
                                 self._state_transition_matrix_to_triples_list(transition_matrix=state_transition_matrix) }
-        return StateMachine(states_count, initial_state, final_states, state_transition, states_labels=states_labels, alphabet=alphabet)
+        return StateMachine(initial_state, final_states, state_transition, 
+                            states_labels=states_labels, alphabet=alphabet, states_count=states_count)
 
     def _determinize_without_epsilon_transitions(self) -> StateMachine:
         # implying that no nontrivial (not into itself) epsilon transition exists
@@ -240,7 +251,8 @@ class StateMachine:
                 label = "{" + ",".join(self._states_labels[q1n] for q1n in q1) + "}"
             states_labels.append(label)
 
-        return StateMachine(states_count, initial_state, final_states, state_transition, states_labels=states_labels, alphabet=alphabet)         
+        return StateMachine(initial_state, final_states, state_transition, 
+                            states_labels=states_labels, alphabet=alphabet, states_count=states_count)         
 
     def determinize(self):
         return self.delete_epsilon_transitions()._determinize_without_epsilon_transitions()
@@ -299,7 +311,7 @@ class StateMachine:
             
             words = []
             for group in groups:
-                if len(group) <= 1:
+                if len(group) <= 2:
                     words.extend(group)
                 else:
                     words.append(f"{group[0]}-{group[-1]}")
@@ -380,7 +392,8 @@ class StateMachine:
                 for old_q2 in self._state_transition_matrix[new_to_old_state_map[q1]][c_index]:
                     q2 = old_to_new_state_map[old_q2]
                     state_transition.add((q1, c, q2))
-        return StateMachine(states_count, initial_state, final_states, state_transition, states_labels=states_labels, alphabet=alphabet)
+        return StateMachine(initial_state, final_states, state_transition, 
+                            states_labels=states_labels, alphabet=alphabet, states_count=states_count)
 
     def factor_state_machine(self, equivalence_classes: List[Set[int]]) -> StateMachine:
         # group states to equivalence classes
@@ -405,7 +418,8 @@ class StateMachine:
                 q2 = old_to_new_state_map[q2_old]
                 if all(map(lambda q: old_to_new_state_map[sget(self._state_transition_matrix[q][c_index])] == q2, clss)):
                     state_transition.add((q1, c, q2))
-        return StateMachine(states_count, initial_state, final_states, state_transition, states_labels=states_labels, alphabet=alphabet)
+        return StateMachine(initial_state, final_states, state_transition, 
+                            states_labels=states_labels, alphabet=alphabet, states_count=states_count)
 
     def get_equivalent_states(self) -> List[Set[int]]:
         inverse_state_transition = self._build_inverse_state_transition_matrix()
@@ -508,13 +522,14 @@ class StateMachine:
     def from_file(filename: str) -> StateMachine:
         with open(filename) as f:
             description = json.load(f)
-            alphabet = set(description["alphabet"])
-            states_count = description["states_count"]
+            alphabet = set(description["alphabet"]) if "alphabet" in description else None
+            states_count = description.get("states_count", None)
             initial_state = description["initial_state"]
             final_states = set(description["final_states"])
             state_transition = {tuple(x) for x in description["state_transition_function"]}
             states_labels = description.get("states_labels", None)
-            return StateMachine(states_count, initial_state, final_states, state_transition, states_labels=states_labels, alphabet=alphabet)
+            return StateMachine(initial_state, final_states, state_transition, 
+                                states_labels=states_labels, alphabet=alphabet, states_count=states_count)
 
     @staticmethod
     def from_regexp(regexp: str) -> StateMachine:
@@ -662,14 +677,23 @@ class RegExp:
         
         initial_state = 0
         final_states = {1}
-        return StateMachine(states_count.get(), initial_state, final_states, state_transition_function)
+        return StateMachine(initial_state, final_states, state_transition_function)
 
 
 if __name__ == "__main__":
-    with open("../HW3/1/keywords.txt", "r") as f:
-        rxsm = StateMachine.from_regexp(f.read())
+    sm = StateMachine.from_file("../HW3/2/test3.json")
+    sm.render(with_stock_state=False).show()
+    sm.delete_epsilon_transitions().render(with_stock_state=False).show()
+    sm_min = sm.determinize().minimize()
+    sm_min.render(with_stock_state=False).show()
 
-    rxsm.render(with_stock_state=False).show()
-    rxsm = rxsm.determinize().minimize()
-    rxsm.set_labels()
-    rxsm.render(with_stock_state=False).save("test.png")
+    """
+
+    for filename in ["keywords", "ident", "numbers"]:
+        with open(f"../HW3/1/{filename}.txt", "r") as f:
+            sm = StateMachine.from_regexp(f.read())
+        sm.render(with_stock_state=False).save(f"../HW3/1/{filename}_undetermenized.png")
+        sm = sm.determinize().minimize()
+        sm.set_labels()
+        sm.render(with_stock_state=False).save(f"../HW3/1/{filename}.png")
+    """
