@@ -15,14 +15,29 @@ def sget(s: Set[T]) -> T:
     return result
 
 
+class Counter:
+    def __init__(self, initial_value):
+        self._counter = initial_value
+    
+    def inc(self):
+        self._counter += 1
+
+    def get(self):
+        return self._counter
+
+
 class StateMachine:
-    def __init__(self, alphabet: Set[str],
+    def __init__(self, 
                 states_count: int, 
                 initial_state: int, 
                 final_states: Set[int], 
                 state_transition: Set[Tuple[int, str, int]],
-                states_labels: List[str]=None):
-        self._alphabet = sorted(alphabet)
+                states_labels: List[str]=None,
+                alphabet: Set[str]=None):
+        if alphabet is None:
+            self._alphabet = self._derive_alphabet(state_transition)
+        else:
+            self._alphabet = sorted(alphabet)
         self._alphabet_size = len(self._alphabet)
         self._symbol_to_index = dict( zip(self._alphabet, range(self._alphabet_size)) )
         self._symbol_to_index[""] = self._alphabet_size
@@ -38,6 +53,13 @@ class StateMachine:
         self._stock_states = set()
         self._state_transition_matrix = self._build_state_transition_matrix(state_transition)
         self._is_deterministic = self._check_if_deterministic()
+
+    def _derive_alphabet(self, state_transition: Set[Tuple[int, str, int]]) -> List[str]:
+        alphabet = set()
+        for (q1, c, q2) in state_transition:
+            if c != '':
+                alphabet.add(c)
+        return sorted(alphabet)
 
     def _alphabet_iter(self, with_epsilon: bool=True):
         yield from enumerate(self._alphabet)
@@ -91,7 +113,13 @@ class StateMachine:
                         stock = self._states_count
                         self._stock_states.add(stock)
                         matrix.append([{stock} for _ in range(self._alphabet_size + 1)])  # add loops into stock state 
-                        self._states_labels.append(f"q_{stock}")
+                        
+                        # add new label
+                        if len(self._states_labels) <= stock:
+                            for i in range(stock + 1):
+                                if f"q_{i}" not in self._states_labels:
+                                    self._states_labels.append(f"q_{i}")
+                                    break
                         self._states_count += 1
 
                     matrix[q][c_index].add(stock)       
@@ -163,7 +191,7 @@ class StateMachine:
         states_labels = copy.deepcopy(self._states_labels)
         state_transition = {tuple(t) for t in 
                                 self._state_transition_matrix_to_triples_list(transition_matrix=state_transition_matrix) }
-        return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)
+        return StateMachine(states_count, initial_state, final_states, state_transition, states_labels=states_labels, alphabet=alphabet)
 
     def _determinize_without_epsilon_transitions(self) -> StateMachine:
         # implying that no nontrivial (not into itself) epsilon transition exists
@@ -212,7 +240,7 @@ class StateMachine:
                 label = "{" + ",".join(self._states_labels[q1n] for q1n in q1) + "}"
             states_labels.append(label)
 
-        return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)         
+        return StateMachine(states_count, initial_state, final_states, state_transition, states_labels=states_labels, alphabet=alphabet)         
 
     def determinize(self):
         return self.delete_epsilon_transitions()._determinize_without_epsilon_transitions()
@@ -260,6 +288,25 @@ class StateMachine:
                 queue.put((q2, new_s))
 
     def render(self, with_stock_state: bool=True) -> Image.Image:
+        def form_label(transition_symbols: List[int]) -> str:
+            transition_symbols.sort(key=lambda s: (len(s), s))
+            groups = []
+            for i in range(len(transition_symbols)):
+                if i == 0   or len(transition_symbols[i-1]) > 1 or len(transition_symbols[i]) > 1 \
+                            or ord(transition_symbols[i-1]) + 1 != ord(transition_symbols[i]):
+                    groups.append([])         
+                groups[-1].append(transition_symbols[i])
+            
+            words = []
+            for group in groups:
+                if len(group) <= 1:
+                    words.extend(group)
+                else:
+                    words.append(f"{group[0]}-{group[-1]}")
+
+            return ", ".join(words)
+
+
         f = Digraph('finite_state_machine', format="png")
         f.attr(rankdir='LR')
 
@@ -279,7 +326,7 @@ class StateMachine:
 
         # edges
         for q1 in range(self._states_count):
-            labels = [[] for _ in range(self._states_count)]
+            transition_symbols = [[] for _ in range(self._states_count)]
             for c_index, c in self._alphabet_iter():
                 if c == "":
                     if self._state_transition_matrix[q1][c_index] == {q1}:
@@ -290,11 +337,11 @@ class StateMachine:
                     if not with_stock_state and q2 in self._stock_states:
                         continue
 
-                    labels[q2].append(c)
+                    transition_symbols[q2].append(c)
         
-            for q2, label in enumerate(labels):
-                if len(label) != 0:
-                    label = ", ".join(label)
+            for q2, symbols in enumerate(transition_symbols):
+                if len(symbols) != 0:
+                    label = form_label(symbols)
                     f.edge(self._states_labels[q1], self._states_labels[q2], label=label)
 
         # draw arrow to initial state
@@ -333,7 +380,7 @@ class StateMachine:
                 for old_q2 in self._state_transition_matrix[new_to_old_state_map[q1]][c_index]:
                     q2 = old_to_new_state_map[old_q2]
                     state_transition.add((q1, c, q2))
-        return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)
+        return StateMachine(states_count, initial_state, final_states, state_transition, states_labels=states_labels, alphabet=alphabet)
 
     def factor_state_machine(self, equivalence_classes: List[Set[int]]) -> StateMachine:
         # group states to equivalence classes
@@ -358,7 +405,7 @@ class StateMachine:
                 q2 = old_to_new_state_map[q2_old]
                 if all(map(lambda q: old_to_new_state_map[sget(self._state_transition_matrix[q][c_index])] == q2, clss)):
                     state_transition.add((q1, c, q2))
-        return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)
+        return StateMachine(states_count, initial_state, final_states, state_transition, states_labels=states_labels, alphabet=alphabet)
 
     def get_equivalent_states(self) -> List[Set[int]]:
         inverse_state_transition = self._build_inverse_state_transition_matrix()
@@ -458,7 +505,7 @@ class StateMachine:
             self._states_labels = labels
 
     @staticmethod
-    def load_from_file(filename: str) -> StateMachine:
+    def from_file(filename: str) -> StateMachine:
         with open(filename) as f:
             description = json.load(f)
             alphabet = set(description["alphabet"])
@@ -467,49 +514,157 @@ class StateMachine:
             final_states = set(description["final_states"])
             state_transition = {tuple(x) for x in description["state_transition_function"]}
             states_labels = description.get("states_labels", None)
-            return StateMachine(alphabet, states_count, initial_state, final_states, state_transition, states_labels=states_labels)
+            return StateMachine(states_count, initial_state, final_states, state_transition, states_labels=states_labels, alphabet=alphabet)
 
+    @staticmethod
+    def from_regexp(regexp: str) -> StateMachine:
+        return RegExp(regexp).to_state_machine()
 
-def build_state_machine_for_words_list(words: List[str]) -> StateMachine:
+class RegExp:
+    def __init__(self, regexp: str):
+        self._regexp = regexp
     
-    states_count = 1
-    initial_state = 0
-    state_transition = set()
-    final_states = set()
+    def _delete_external_brackets(self, regexp: str) -> str:
+        external_brackets_count = 0
+        while regexp[external_brackets_count] == '(' and regexp[-external_brackets_count - 1] == ')':
+            external_brackets_count += 1
+        
+        if external_brackets_count == 0:
+            return regexp
 
-    for word in sorted(words):
-        current_state = initial_state
-        for c in word:
-            state_transition.add((current_state, c, states_count))            
-            current_state = states_count
-            states_count += 1
-        final_states.add(current_state)
+        min_level = level = external_brackets_count
 
-    alphabet = {c for word in words for c in word}
-     
-    return StateMachine(alphabet, states_count, initial_state, final_states, state_transition)
+        for i in range(external_brackets_count, len(regexp) - external_brackets_count):
+            c = regexp[i]
+            if c == '(':
+                level += 1
+            elif c == ')':
+                level -= 1
+                min_level = min(level, min_level)
+        
+        if min_level == 0:
+            return regexp
+        return regexp[min_level:-min_level]
+
+    def _iter_with_level(self, regexp: str):
+        level = 0
+        for c in regexp:
+            if c == '(':
+                level += 1
+            elif c == ')':
+                level -= 1
+            yield (level, c)
+
+    def _find_alternation(self, regexp: str) -> int:
+        for i, (level, c) in enumerate(self._iter_with_level(regexp)):
+            if c == '|' and level == 0:
+                return i
+        return -1
+
+    def _find_concatenation(self, regexp: str) -> int:
+        i = 0
+        if regexp[0] == '[':
+            while regexp[i] != ']':
+                i += 1
+        elif regexp[0] == '(':
+            for i, (level, c) in enumerate(self._iter_with_level(regexp)):
+                if c == ')' and level == 0:
+                    break
+        elif regexp[0] == '\\':
+            i += 1
+    
+        while i + 1 < len(regexp) and regexp[i + 1] in "+*?":
+            i += 1
+
+        if i != len(regexp) - 1:
+            return i + 1
+        return -1
+
+    def _parse_recursive(self,  transition: Tuple[int, str, int], 
+                                state_transition_function: Set[Tuple[int, str, int]],
+                                states_count: Counter) -> None:
+        q1, regexp, q2 = transition
+
+        # 1. delete external brackets
+        regexp = self._delete_external_brackets(regexp)
+            
+        # 2. split by alternation |
+        alternation_position = self._find_alternation(regexp)
+        if alternation_position != -1:
+            left, right = regexp[:alternation_position], regexp[alternation_position + 1:]
+            self._parse_recursive((q1, left, q2), state_transition_function, states_count)
+            self._parse_recursive((q1, right, q2), state_transition_function, states_count)
+            return
+        
+        # 3. split by concatenation
+        concatenation_position = self._find_concatenation(regexp)
+        if concatenation_position != -1:
+            left, right = regexp[:concatenation_position], regexp[concatenation_position:]
+            q12 = states_count.get()
+            states_count.inc()
+            self._parse_recursive((q1, left, q12), state_transition_function, states_count)
+            self._parse_recursive((q12, right, q2), state_transition_function, states_count)
+            return
+        
+        # 4. modifiers *, +, ?
+        if regexp[-1] == '*' and regexp[-2] != '\\':
+            state_transition_function.add((q1, "", q2))
+            self._parse_recursive((q1, regexp[:-1], q1), state_transition_function, states_count)
+            return
+        elif regexp[-1] == '+' and regexp[-2] != '\\':
+            # A+ = AA*
+            q12 = states_count.get()
+            states_count.inc()
+            self._parse_recursive((q1, regexp[:-1], q12), state_transition_function, states_count)
+            self._parse_recursive((q12, regexp[:-1]+'*', q2), state_transition_function, states_count)
+            return
+        elif regexp[-1] == '?' and regexp[-2] != '\\':
+            state_transition_function.add((q1, "", q2))
+            self._parse_recursive((q1, regexp[:-1], q2), state_transition_function, states_count)
+            return
+
+        # 5. [a1-a2]
+        if regexp[0] == '[':
+            a1 = regexp[1]
+            a2 = regexp[3]
+            for char_code in range(ord(a1), ord(a2) + 1):
+                state_transition_function.add((q1, chr(char_code), q2))
+            return
+        
+        # 6. just one symbol 'x'
+        assert len(regexp) <= 2
+        if regexp[0] == '\\':
+            c = regexp[1]
+        else:
+            c = regexp[0]
+        state_transition_function.add((q1, c, q2))
+
+        
+    def to_state_machine(self) -> StateMachine:
+        state_transition_function = set()
+        states_count = Counter(2)
+        self._parse_recursive((0, self._regexp, 1), state_transition_function, states_count)
+        
+        initial_state = 0
+        final_states = {1}
+        return StateMachine(states_count.get(), initial_state, final_states, state_transition_function)
+
 
 if __name__ == "__main__":
-    # sm = StateMachine.load_from_file("../3/test.json")
-    keywords = [
-        '_',	'abstract',	'alignof',	'as',	'become',
-        'box',	'break',	'const',	'continue',	'crate',
-        'do',	'else',	'enum',	'extern',	'false',
-        'final',	'fn',	'for',	'if',	'impl',
-        'in',	'let',	'loop',	'macro',	'match',
-        'mod',	'move',	'mut',	'offsetof',	'override',
-        'priv',	'proc',	'pub',	'pure',	'ref',
-        'return',	'Self',	'self',	'sizeof',	'static',
-        'struct',	'super',	'trait', 'true',	'type',
-        'typeof',	'unsafe',	'unsized',	'use',	'virtual',
-        'where',	'while',	'yield'
-    ]
-    sm_keywords = build_state_machine_for_words_list(keywords)
+    # rxsm = StateMachine.from_regexp("([a-z]|[A-Z]|_)([0-9]|[a-z]|[A-Z]|_)*")
+    # rxsm = StateMachine.from_regexp("test|oleg|testosteron")
+    rxsm = StateMachine.from_regexp("[0-9]([0-9]|_)*(.([0-9]|_)+)?((e|E)(-|\+)?([0-9]|_)+)?")
 
-    sm_keywords.save_to_file("../HW3/1/keywords.json")
-
-    #sm_keywords.render(with_stock_state=False).save("undeterminized.png")
-    sm_keywords = sm_keywords.determinize().minimize()
-    print(sm_keywords.get_states_count())
-    sm_keywords.set_labels()
-    #sm_keywords.render(with_stock_state=False).save('test.png')
+    rxsm.render(with_stock_state=False).show()
+    rxsm = rxsm.determinize().minimize()
+    rxsm.render(with_stock_state=False).show()
+    for i, w in enumerate(rxsm.list_words_lexicographical(1000)):
+        if i % 10 == 0:
+            print(w)
+    print(rxsm.is_word_accepted("123.123E+22"))
+    """
+    sm_keywords = StateMachine.load_from_file("../HW3/1/keywords.json")
+    sm_ident = StateMachine.load_from_file("../HW3/1/ident.json")
+    sm_numbers = StateMachine.load_from_file("../HW3/1/numbers.json")
+    sm_numbers.minimize().render(with_stock_state=False).show() 
+    """
