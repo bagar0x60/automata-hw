@@ -522,8 +522,23 @@ class StateMachine:
 
 class RegExp:
     def __init__(self, regexp: str):
-        self._regexp = regexp
+        self._regexp = self._delete_whitespaces(regexp)
     
+    def _delete_whitespaces(self, regexp: str) -> str:
+        result = ""
+        i = 0
+        while i < len(regexp):
+            if regexp[i] == '\\':
+                result += regexp[i:i+2]
+                i += 2
+                continue
+            elif regexp[i] in {'\n', ' '}:
+                i += 1
+                continue
+            result += regexp[i]
+            i += 1
+        return result     
+
     def _delete_external_brackets(self, regexp: str) -> str:
         external_brackets_count = 0
         while regexp[external_brackets_count] == '(' and regexp[-external_brackets_count - 1] == ')':
@@ -651,20 +666,10 @@ class RegExp:
 
 
 if __name__ == "__main__":
-    # rxsm = StateMachine.from_regexp("([a-z]|[A-Z]|_)([0-9]|[a-z]|[A-Z]|_)*")
-    # rxsm = StateMachine.from_regexp("test|oleg|testosteron")
-    rxsm = StateMachine.from_regexp("[0-9]([0-9]|_)*(.([0-9]|_)+)?((e|E)(-|\+)?([0-9]|_)+)?")
+    with open("../HW3/1/keywords.txt", "r") as f:
+        rxsm = StateMachine.from_regexp(f.read())
 
     rxsm.render(with_stock_state=False).show()
     rxsm = rxsm.determinize().minimize()
-    rxsm.render(with_stock_state=False).show()
-    for i, w in enumerate(rxsm.list_words_lexicographical(1000)):
-        if i % 10 == 0:
-            print(w)
-    print(rxsm.is_word_accepted("123.123E+22"))
-    """
-    sm_keywords = StateMachine.load_from_file("../HW3/1/keywords.json")
-    sm_ident = StateMachine.load_from_file("../HW3/1/ident.json")
-    sm_numbers = StateMachine.load_from_file("../HW3/1/numbers.json")
-    sm_numbers.minimize().render(with_stock_state=False).show() 
-    """
+    rxsm.set_labels()
+    rxsm.render(with_stock_state=False).save("test.png")
