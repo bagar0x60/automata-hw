@@ -1,0 +1,7 @@
+{
+    "initial_state": 0,
+    "final_states": [1],
+    "state_transition_function": [
+        [0, "0", 0], [0, "1", 0], [0, "1", 1]
+    ]
+}

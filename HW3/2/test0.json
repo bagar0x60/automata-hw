@@ -1,0 +1,12 @@
+{
+    "initial_state": 0,
+    "final_states": [5],
+    "state_transition_function": [
+        [0, "l", 1], [0, "l", 2],
+        [1, "o", 3],
+        [2, "o", 4],
+        [3, "l", 5], 
+        [4, "l", 6],
+        [6, "i", 5]
+    ]
+}
