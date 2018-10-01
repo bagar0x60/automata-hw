@@ -1,6 +1,7 @@
 *.png
 *.pdf
 *_minimized*
+*_determinized*
 *.pyc
 .vscode
 *.aux

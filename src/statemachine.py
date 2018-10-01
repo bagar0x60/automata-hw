@@ -681,14 +681,6 @@ class RegExp:
 
 
 if __name__ == "__main__":
-    sm = StateMachine.from_file("../HW3/2/test3.json")
-    sm.render(with_stock_state=False).show()
-    sm.delete_epsilon_transitions().render(with_stock_state=False).show()
-    sm_min = sm.determinize().minimize()
-    sm_min.render(with_stock_state=False).show()
-
-    """
-
     for filename in ["keywords", "ident", "numbers"]:
         with open(f"../HW3/1/{filename}.txt", "r") as f:
             sm = StateMachine.from_regexp(f.read())
@@ -696,4 +688,3 @@ if __name__ == "__main__":
         sm = sm.determinize().minimize()
         sm.set_labels()
         sm.render(with_stock_state=False).save(f"../HW3/1/{filename}.png")
-    """

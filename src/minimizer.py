@@ -12,7 +12,7 @@ for sm_filename in sys.argv[1:]:
     name, ext = os.path.splitext(sm_filename)
     sm_minimized_filename = f"{name}_minimized{ext}"
 
-    sm = StateMachine.load_from_file(sm_filename)
+    sm = StateMachine.from_file(sm_filename)
     sm_minimized = sm.minimize()
     if sm.get_states_count() == sm_minimized.get_states_count():
         copyfile(sm_filename, sm_minimized_filename)
