@@ -182,12 +182,7 @@ class StateMachine:
             for q1 in inverse_transition[q2][eps_index]:
                 for (c_index, _) in self._alphabet_iter():                    
                     state_transition_matrix[q1][c_index].update(state_transition_matrix[q2][c_index])
-
-            # (q1, c, q2) and (q2, eps, q3) => (q1, c, q3)
-            for (c_index, _) in self._alphabet_iter():
-                for q1 in inverse_transition[q2][c_index]:                                    
-                    state_transition_matrix[q1][c_index].update(state_transition_matrix[q2][eps_index])
-         
+            
         # 4. Delete epsilone transitions
 
         for q1 in range(self._states_count):
@@ -681,6 +676,7 @@ class RegExp:
 
 
 if __name__ == "__main__":
+    """
     for filename in ["keywords", "ident", "numbers"]:
         with open(f"../HW3/1/{filename}.txt", "r") as f:
             sm = StateMachine.from_regexp(f.read())
@@ -688,3 +684,8 @@ if __name__ == "__main__":
         sm = sm.determinize().minimize()
         sm.set_labels()
         sm.render(with_stock_state=False).save(f"../HW3/1/{filename}.png")
+    """
+
+    sm = StateMachine.from_file("../HW3/2/test3.json")
+    sm.render(with_stock_state=False).show()
+    sm.determinize().minimize().render(with_stock_state=False).show()
