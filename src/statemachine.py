@@ -19,8 +19,8 @@ class Counter:
     def __init__(self, initial_value):
         self._counter = initial_value
     
-    def inc(self):
-        self._counter += 1
+    def inc(self, value: int=1):
+        self._counter += value
 
     def get(self):
         return self._counter
@@ -616,9 +616,13 @@ class RegExp:
         # 2. split by alternation |
         alternation_position = self._find_alternation(regexp)
         if alternation_position != -1:
+            q_new = states_count.get()
+            states_count.inc(4)
+            state_transition_function.update({  (q1, "", q_new), (q1, "", q_new + 2), 
+                                                (q_new + 1, "", q2), (q_new + 3, "", q2)    }) 
             left, right = regexp[:alternation_position], regexp[alternation_position + 1:]
-            self._parse_recursive((q1, left, q2), state_transition_function, states_count)
-            self._parse_recursive((q1, right, q2), state_transition_function, states_count)
+            self._parse_recursive((q_new, left, q_new + 1), state_transition_function, states_count)
+            self._parse_recursive((q_new + 2, right, q_new + 3), state_transition_function, states_count)
             return
         
         # 3. split by concatenation
@@ -633,8 +637,11 @@ class RegExp:
         
         # 4. modifiers *, +, ?
         if regexp[-1] == '*' and regexp[-2] != '\\':
-            state_transition_function.add((q1, "", q2))
-            self._parse_recursive((q1, regexp[:-1], q1), state_transition_function, states_count)
+            q_new = states_count.get()
+            states_count.inc(2)
+            state_transition_function.update({  (q1, "", q_new), (q1, "", q_new + 1), 
+                                                (q_new + 1, "", q_new), (q_new + 1, "", q2)    }) 
+            self._parse_recursive((q_new, regexp[:-1], q_new + 1), state_transition_function, states_count)
             return
         elif regexp[-1] == '+' and regexp[-2] != '\\':
             # A+ = AA*
@@ -644,8 +651,11 @@ class RegExp:
             self._parse_recursive((q12, regexp[:-1]+'*', q2), state_transition_function, states_count)
             return
         elif regexp[-1] == '?' and regexp[-2] != '\\':
-            state_transition_function.add((q1, "", q2))
-            self._parse_recursive((q1, regexp[:-1], q2), state_transition_function, states_count)
+            # A? = A|eps
+            q_new = states_count.get()
+            states_count.inc(2)
+            state_transition_function.update({ (q1, "", q2),  (q1, "", q_new), (q_new + 1, "", q2) })
+            self._parse_recursive((q_new, regexp[:-1], q_new + 1), state_transition_function, states_count)
             return
 
         # 5. [a1-a2]
@@ -686,6 +696,6 @@ if __name__ == "__main__":
         sm.render(with_stock_state=False).save(f"../HW3/1/{filename}.png")
     """
 
-    sm = StateMachine.from_file("../HW3/2/test3.json")
+    sm = StateMachine.from_regexp("(a*b)*|(ab*)*")
     sm.render(with_stock_state=False).show()
     sm.determinize().minimize().render(with_stock_state=False).show()
