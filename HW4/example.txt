@@ -1,0 +1,6 @@
+Expr 123 fuck you trump
++ * 0 1 ( )
+Expr Term Factor
+Expr -> Expr + Term | Term
+Term -> Term * Factor | Factor
+Factor -> 0 | 1 | ( Expr )
