@@ -696,6 +696,10 @@ if __name__ == "__main__":
         sm.render(with_stock_state=False).save(f"../HW3/1/{filename}.png")
     """
 
-    sm = StateMachine.from_regexp("(a*b)*|(ab*)*")
-    sm.render(with_stock_state=False).show()
-    sm.determinize().minimize().render(with_stock_state=False).show()
+    sm = StateMachine.from_regexp("(a|abba|ba)*")
+    # sm.render(with_stock_state=False).show()
+
+    smm = sm.determinize().minimize()
+    smm.set_labels()
+    smm.render(with_stock_state=False).show()
+    smm.render(with_stock_state=False).save("test.png")
