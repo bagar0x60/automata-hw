@@ -22,7 +22,7 @@ module cfgrammar_module
         type(production_type), dimension(:), allocatable :: productions
 
         contains
-            procedure :: read_text_description, write_text_description, from_file, to_file, normalize
+            procedure :: read_text_description, write_text_description, from_file, to_file, normalize, is_empty
     end type     
 
 contains
@@ -437,4 +437,51 @@ contains
         ! 5. Delete chain productions
         call normalize_5(self) 
     end subroutine
+
+    function is_empty(self)
+        implicit none
+        class(cfgrammar_type), intent(in out) ::self
+        logical :: is_empty
+
+        integer :: i, j
+        logical :: something_changes
+        logical, dimension(size(self%nonterminals)) :: productive_nonterminals
+        type(token_type), dimension(:), allocatable :: tokens
+
+        call self%normalize()
+
+        ! find productive nonterminals
+        ! base
+        productive_nonterminals = .false.
+        do i = 1, size(self%productions)
+            do j = 1, size(self%productions(i)%p)
+                if (size(self%productions(i)%p(j)%tokens) == 1) then
+                    productive_nonterminals(i) = .true.  
+                    exit          
+                end if
+            end do
+        end do
+
+        something_changes = .true.
+        do while (something_changes)    
+            something_changes = .false.
+            do i = 1, size(self%productions)
+                if (productive_nonterminals(i)) cycle
+                do j = 1, size(self%productions(i)%p)
+                    tokens = self%productions(i)%p(j)%tokens
+                    
+                    if (    size(tokens) == 2 .and. &
+                            productive_nonterminals(tokens(1)%index) .and.  &
+                            productive_nonterminals(tokens(2)%index) ) then
+                        something_changes = .true.
+                        productive_nonterminals(i) = .true.
+                        exit
+                    end if               
+                end do
+            end do
+        end do
+        
+        print *, productive_nonterminals
+        is_empty = .not. productive_nonterminals(self%initial_nonterminal)
+    end function
 end module cfgrammar_module
