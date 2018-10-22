@@ -73,6 +73,8 @@ contains
 
                 allocate(production%tokens(0))
                 do j = 1, size(tokens)
+                    if (tokens(j)%s == "_eps") cycle
+
                     index = index_character_box(self%terminals, tokens(j)%s)
                     if (index > 0) then 
                         token%is_terminal = .true.
@@ -122,6 +124,9 @@ contains
 
             write (unit, '(a)', advance="no") self%nonterminals(i)%s // " -> "
             do j = 1, size(self%productions(i)%pl) 
+                if (size(self%productions(i)%pl(j)%tokens) == 0) &
+                    write (unit, '(a)', advance="no") "_eps"
+
                 do k = 1, size(self%productions(i)%pl(j)%tokens)
                     token = self%productions(i)%pl(j)%tokens(k)
                     if (token%is_terminal) then
