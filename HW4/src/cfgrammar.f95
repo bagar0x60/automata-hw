@@ -354,7 +354,7 @@ contains
         
         ! add _eps production to initial nonterminal if needed
         if (eps_producing_nonterminals(self%initial_nonterminal)) then
-            deallocate(new_tokens%tokens)
+            if (allocated(new_tokens%tokens)) deallocate(new_tokens%tokens)
             allocate(new_tokens%tokens(0))
             self%productions(self%initial_nonterminal)%p = [self%productions(self%initial_nonterminal)%p, new_tokens]
         end if
@@ -445,10 +445,11 @@ contains
 
         integer :: i, j
         logical :: something_changes
-        logical, dimension(size(self%nonterminals)) :: productive_nonterminals
+        logical, dimension(:), allocatable :: productive_nonterminals
         type(token_type), dimension(:), allocatable :: tokens
 
         call self%normalize()
+        allocate(productive_nonterminals(size(self%nonterminals)))
 
         ! find productive nonterminals
         ! base

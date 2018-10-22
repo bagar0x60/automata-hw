@@ -4,7 +4,7 @@ program main
     implicit none
     
     type(cfgrammar_type) :: grammar
-    call grammar%from_file("../2/test_3.txt")
+    call grammar%from_file("../1/test_2.txt")
     call grammar%normalize()
     call grammar%write_text_description(6)
     print *, grammar%is_empty()
