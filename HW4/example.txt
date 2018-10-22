@@ -1,4 +1,4 @@
-Expr 123 fuck you trump
+Expr
 + * 0 1 ( )
 Expr Term Factor
 Expr -> Expr + Term | Term
