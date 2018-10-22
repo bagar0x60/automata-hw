@@ -7,10 +7,10 @@ implicit none
 
 contains 
     function index_character_box(array, item) result(index)
-    implicit none
-    type(character_box_type), dimension(:), allocatable :: array
-    character(*) :: item
-    integer :: index
+        implicit none
+        type(character_box_type), dimension(:), allocatable :: array
+        character(*) :: item
+        integer :: index
 
         do index = 1, size(array)
             if (array(index)%s == item) return
@@ -18,11 +18,21 @@ contains
         index = 0
     end function
 
+    function integer_to_character(num) result(str)
+        implicit none
+        integer :: num
+        character(:), allocatable :: str
+        character(len=20) :: temp
+
+        write (temp, "(I0)") num
+        str = trim(temp)
+    end function
+
     subroutine read_line(unit, line, ier)
-    implicit none
-    integer, intent(in) :: unit
-    character(len=:), allocatable, intent(out) :: line
-    integer, intent(out) :: ier
+        implicit none
+        integer, intent(in) :: unit
+        character(len=:), allocatable, intent(out) :: line
+        integer, intent(out) :: ier
     
        integer, parameter :: buffer_size = 1024
        character(len=buffer_size) :: buffer
@@ -55,13 +65,12 @@ contains
        enddo READ_LOOP    
     end subroutine read_line
 
-
     function split(str, separator, without_empty_substrings)
-    implicit none
-    character(:), allocatable :: str
-    character(*) :: separator
-    logical, optional :: without_empty_substrings
-    type(character_box_type), dimension(:), allocatable :: split
+        implicit none
+        character(:), allocatable :: str
+        character(*) :: separator
+        logical, optional :: without_empty_substrings
+        type(character_box_type), dimension(:), allocatable :: split
         
         integer :: pos 
         type(character_box_type) :: substring
