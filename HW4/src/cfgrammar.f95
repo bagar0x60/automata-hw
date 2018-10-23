@@ -485,11 +485,10 @@ contains
                 end do
             end do
         end do
-        
-        print *, productive_nonterminals
+            
         is_empty = .not. productive_nonterminals(self%initial_nonterminal)
     end function
-        
+
     function build_cyk_table(self, str) result(table)
         implicit none
         class(cfgrammar_type), intent(in out) :: self
@@ -579,8 +578,9 @@ contains
 
     end subroutine
 
-    recursive subroutine print_parse_tree(grammar, cyk_table, x, y, z, level)
+    recursive subroutine print_parse_tree(unit, grammar, cyk_table, x, y, z, level)
         implicit none
+        integer unit
         class(cfgrammar_type) :: grammar
         integer, dimension(:, :, :, :), allocatable :: cyk_table
         integer :: x, y, z
@@ -598,16 +598,16 @@ contains
 
         label = grammar%nonterminals(x)%s
 
-        print*, repeat(" ", level * TAB_SIZE) // label
+        write (unit, *) repeat(" ", level * TAB_SIZE) // label
 
         if (y == z) then
             label = grammar%terminals(grammar%productions(x)%p(production_index)%tokens(1)%index)%s
-            print*, repeat(" ", (level + 1)*TAB_SIZE) // label
+            write (unit, *) repeat(" ", (level + 1)*TAB_SIZE) // label
             return
         end if
         left_token = grammar%productions(x)%p(production_index)%tokens(1)
         right_token = grammar%productions(x)%p(production_index)%tokens(2)
-        call print_parse_tree(grammar, cyk_table, left_token%index, y, mid, level + 1)      
-        call print_parse_tree(grammar, cyk_table, right_token%index, mid + 1, z, level + 1)
+        call print_parse_tree(unit, grammar, cyk_table, left_token%index, y, mid, level + 1)      
+        call print_parse_tree(unit, grammar, cyk_table, right_token%index, mid + 1, z, level + 1)
     end subroutine
 end module cfgrammar_module

@@ -13,7 +13,7 @@ program main
     str = "((())())"
     table = grammar%build_cyk_table(str)
     ! tree = parse_tree(grammar, table, grammar%initial_nonterminal, 1, len(str))
-    call print_parse_tree(grammar, table, grammar%initial_nonterminal, 1, len(str), 0)
+    call print_parse_tree(6, grammar, table, grammar%initial_nonterminal, 1, len(str), 0)
     ! call print_cyk_table(grammar, table)
 end program main
 
