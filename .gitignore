@@ -2,6 +2,9 @@
 *.pdf
 *_minimized*
 *_determinized*
+*_normalized*
+*_table*
+*_tree*
 *.pyc
 .vscode
 *.aux

@@ -152,10 +152,10 @@ contains
         class(cfgrammar_type), intent(in out) ::self
         character(*), intent(in) :: file_name
         
-        integer, parameter :: UNIT = 10
-        open (UNIT, access = "sequential", file = file_name, status = 'old', action="read")
-        call self%read_text_description(UNIT)
-        close(UNIT)
+        integer :: unit = 0
+        open (newunit=unit, access = "sequential", file = file_name, status = 'old', action="read")
+        call self%read_text_description(unit)
+        close(unit)
     end subroutine
 
     subroutine to_file(self, file_name)
@@ -163,10 +163,10 @@ contains
         class(cfgrammar_type), intent(in out) ::self
         character(*), intent(in) :: file_name
 
-        integer, parameter :: UNIT = 10
-        open (UNIT, access = "sequential", file = file_name, status = 'replace', action="write")
-        call self%write_text_description(UNIT)
-        close(UNIT)
+        integer :: unit = 0
+        open (newunit=unit, access = "sequential", file = file_name, status = 'replace', action="write")
+        call self%write_text_description(unit)
+        close(unit)
     end subroutine
 
     subroutine create_nonterminal(self, index)
@@ -554,8 +554,9 @@ contains
         end do
     end function
 
-    subroutine print_cyk_table(grammar, cyk_table)
+    subroutine print_cyk_table(unit, grammar, cyk_table)
         implicit none
+        integer :: unit
         class(cfgrammar_type) :: grammar
         integer, dimension(:, :, :, :), allocatable :: cyk_table
 
@@ -568,12 +569,12 @@ contains
             do j = 1, shp(3)
                 do k = 1, shp(1)
                     if (cyk_table(k, i, j, 2) /= 0) then
-                        write (*, '(a)', advance="no") grammar%nonterminals(k)%s // ","
+                        write (unit, '(a)', advance="no") grammar%nonterminals(k)%s // " "
                     end if 
                 end do
-                write (*, '(a)', advance="no") " | "
+                write (unit, '(a)', advance="no") ","
             end do
-            print*
+            write (unit, *) 
         end do
 
     end subroutine
