@@ -1,0 +1,8 @@
+S2
+( )
+S S2 S3 S4 S5
+S -> S S | S5 S4
+S2 -> S S | S5 S4 | _eps
+S3 -> (
+S4 -> )
+S5 -> ( | S3 S

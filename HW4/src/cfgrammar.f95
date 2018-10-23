@@ -104,7 +104,7 @@ contains
         integer :: i, j, k
         character(:), allocatable :: str 
         ! 1. Write initial nonterminal
-        write (unit, *) self%nonterminals(self%initial_nonterminal)%s
+        write (unit, '(a)') self%nonterminals(self%initial_nonterminal)%s
 
         ! 2. Write terminals
         do i = 1, size(self%terminals) - 1
@@ -164,7 +164,7 @@ contains
         character(*), intent(in) :: file_name
 
         integer, parameter :: UNIT = 10
-        open (UNIT, access = "sequential", file = file_name, status = 'old', action="read")
+        open (UNIT, access = "sequential", file = file_name, status = 'replace', action="write")
         call self%write_text_description(UNIT)
         close(UNIT)
     end subroutine
@@ -485,7 +485,7 @@ contains
                 end do
             end do
         end do
-            
+
         is_empty = .not. productive_nonterminals(self%initial_nonterminal)
     end function
 
