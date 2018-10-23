@@ -22,9 +22,9 @@ module cfgrammar_module
         type(production_type), dimension(:), allocatable :: productions
 
         contains
-            procedure :: read_text_description, write_text_description, from_file, to_file, normalize, is_empty
-    end type     
-
+            procedure :: read_text_description, write_text_description, from_file, &
+                         to_file, normalize, is_empty, build_cyk_table
+    end type   
 contains
     subroutine read_text_description(self, unit)
         implicit none
@@ -387,10 +387,12 @@ contains
                     if (is_chain_pair_exist(a, b)) then
                         do i = 1, size(self%productions(b)%p)
                             tokens = self%productions(b)%p(i)%tokens
-                            if (size(tokens) == 1 .and. .not. tokens(1)%is_terminal) then
-                                if (.not. is_chain_pair_exist(a, tokens(1)%index)) then
-                                    something_changes = .true.
-                                    is_chain_pair_exist(a, tokens(1)%index) = .true.
+                            if (size(tokens) == 1) then
+                                if (.not. tokens(1)%is_terminal) then
+                                    if (.not. is_chain_pair_exist(a, tokens(1)%index)) then
+                                        something_changes = .true.
+                                        is_chain_pair_exist(a, tokens(1)%index) = .true.
+                                    end if
                                 end if
                             end if
                         end do
@@ -406,7 +408,9 @@ contains
                 if (is_chain_pair_exist(a, b)) then
                     do i = 1, size(self%productions(b)%p)   
                         tokens = self%productions(b)%p(i)%tokens
-                        if (size(tokens) /= 1 .or. (size(tokens) == 1 .and. tokens(1)%is_terminal)) then
+                        if (size(tokens) /= 1) then 
+                            production = [production, self%productions(b)%p(i)]
+                        else if (tokens(1)%is_terminal) then
                             production = [production, self%productions(b)%p(i)]
                         end if
                     end do                 
@@ -485,4 +489,125 @@ contains
         print *, productive_nonterminals
         is_empty = .not. productive_nonterminals(self%initial_nonterminal)
     end function
+        
+    function build_cyk_table(self, str) result(table)
+        implicit none
+        class(cfgrammar_type), intent(in out) :: self
+        character(*) :: str
+        integer, dimension(:, :, :, :), allocatable :: table
+
+        integer :: i, j, k, t, s, index, m, mid, index_left, index_right
+        integer, dimension(len(str)) :: index_str
+        type(token_type), dimension(:), allocatable :: tokens
+
+        ! call self%normalize() todo
+        allocate(table(size(self%nonterminals), len(str), len(str), 2))
+        table = 0
+
+        do i = 1, len(str)
+            index_str(i) = index_character_box(self%terminals, str(i:i))
+            if (index_str(i) == 0) then
+                ! word not in language. return empty table?
+            end if
+        end do
+
+        ! initialization
+        ! fill diagonal
+        do i = 1, size(self%productions)
+            do j = 1, size(self%productions(i)%p)
+                tokens = self%productions(i)%p(j)%tokens
+                if (size(tokens) == 1) then
+                    index = tokens(1)%index
+                    do k = 1, size(index_str)
+                        if (index_str(k) == index) then
+                            ! table(i, k, k, 1) = k
+                            table(i, k, k, 2) = j
+                        end if
+                    end do
+                end if
+            end do           
+        end do
+
+        ! dynamic
+        do m = 2, size(index_str)
+            do i = 1, size(index_str) - m + 1
+                do j = m, size(index_str)
+                    do mid = i, j-1
+                        ! iterate in productions rules
+                        do k = 1, size(self%productions)
+                            do s = 1, size(self%productions(k)%p)
+                                tokens = self%productions(k)%p(s)%tokens
+                                if (size(tokens) == 2) then
+                                    index_left = tokens(1)%index
+                                    index_right = tokens(2)%index
+                                    if (table(index_left, i, mid, 2) /= 0 .and.&
+                                         table(index_right, mid + 1, j, 2) /= 0) then
+                                        table(k, i, j, 1) = mid
+                                        table(k, i, j, 2) = s
+                                        exit
+                                    end if
+                                end if 
+                            end do
+                        end do 
+                    end do
+                end do
+            end do
+        end do
+    end function
+
+    subroutine print_cyk_table(grammar, cyk_table)
+        implicit none
+        class(cfgrammar_type) :: grammar
+        integer, dimension(:, :, :, :), allocatable :: cyk_table
+
+        integer, dimension(:), allocatable :: shp
+        integer :: i, j, k
+        
+        shp = shape(cyk_table)
+
+        do i = 1, shp(2)
+            do j = 1, shp(3)
+                do k = 1, shp(1)
+                    if (cyk_table(k, i, j, 2) /= 0) then
+                        write (*, '(a)', advance="no") grammar%nonterminals(k)%s // ","
+                    end if 
+                end do
+                write (*, '(a)', advance="no") " | "
+            end do
+            print*
+        end do
+
+    end subroutine
+
+    recursive subroutine print_parse_tree(grammar, cyk_table, x, y, z, level)
+        implicit none
+        class(cfgrammar_type) :: grammar
+        integer, dimension(:, :, :, :), allocatable :: cyk_table
+        integer :: x, y, z
+        integer :: level
+
+        integer, parameter :: TAB_SIZE = 4
+        character(:), allocatable :: label
+        integer :: mid, production_index
+        type(token_type) :: left_token, right_token
+
+        mid = cyk_table(x, y, z, 1)
+        production_index = cyk_table(x, y, z, 2)
+
+        if (production_index == 0) return
+
+        label = grammar%nonterminals(x)%s
+
+        print*, repeat(" ", level * TAB_SIZE) // label
+
+        if (y == z) then
+            label = grammar%terminals(grammar%productions(x)%p(production_index)%tokens(1)%index)%s
+            print*, repeat(" ", (level + 1)*TAB_SIZE) // label
+            return
+        end if
+        left_token = grammar%productions(x)%p(production_index)%tokens(1)
+        right_token = grammar%productions(x)%p(production_index)%tokens(2)
+        call print_parse_tree(grammar, cyk_table, left_token%index, y, mid, level + 1)      
+        call print_parse_tree(grammar, cyk_table, right_token%index, mid + 1, z, level + 1)
+    end subroutine
 end module cfgrammar_module
