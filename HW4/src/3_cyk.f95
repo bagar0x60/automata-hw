@@ -36,7 +36,7 @@ program cyk
     
     table_filename = name//"_table.csv"
     open (newunit=unit, access = "sequential", file = table_filename, status = 'replace', action="write")
-    call print_cyk_table(unit, grammar, table)
+    call print_cyk_table(unit, parsed_str, grammar, table)
     close(unit)
 
     tree_filename = name//"_tree.txt"

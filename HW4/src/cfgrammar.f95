@@ -554,9 +554,10 @@ contains
         end do
     end function
 
-    subroutine print_cyk_table(unit, grammar, cyk_table)
+    subroutine print_cyk_table(unit, parsed_str, grammar, cyk_table)
         implicit none
         integer :: unit
+        character(:), allocatable :: parsed_str
         class(cfgrammar_type) :: grammar
         integer, dimension(:, :, :, :), allocatable :: cyk_table
 
@@ -564,15 +565,21 @@ contains
         integer :: i, j, k
         
         shp = shape(cyk_table)
+        
+        do i = 1, shp(2)
+            write (unit, '(a)', advance="no") ","//parsed_str(i:i)
+        end do
+        write (unit, *)
 
         do i = 1, shp(2)
+            write (unit, '(a)', advance="no") parsed_str(i:i)
             do j = 1, shp(3)
+                write (unit, '(a)', advance="no") ","
                 do k = 1, shp(1)
                     if (cyk_table(k, i, j, 2) /= 0) then
                         write (unit, '(a)', advance="no") grammar%nonterminals(k)%s // " "
                     end if 
-                end do
-                write (unit, '(a)', advance="no") ","
+                end do                 
             end do
             write (unit, *) 
         end do
