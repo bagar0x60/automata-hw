@@ -1,36 +1,13 @@
-## Запуск скрипта
-Для запуска необходим `python 3.7` и пакеты `pillow` и `graphviz`.
-Установка пакетов при наличии `pip`:
-```bash
-# pip install pillow
-# pip install graphviz
-```
-Чтобы рисовать автоматы, надо установить и сам `graphviz`, а не только `python` пакет. На убунту:
-```bash
-apt-get install graphviz
-```
-На Windows надо скачать [установщик](https://graphviz.gitlab.io/_pages/Download/Download_windows.html) и после установки добавить путь до `graphviz/bin` в `PATH`.
+# Минимизация (ДЗ 2)
 
 ## Описание формата хранения автомата
-Автомат хранится в формате `json`. Пример:
-```json
-{
-    "alphabet": ["a", "b", "c"],
-    "states_count": 2,
-    "initial_state": 0,
-    "final_states": [0, 1],
-    "state_transition_function": [
-        [0, "a", 0], [0, "b", 1], [0, "a", 1], 
-        [1, "a", 1], [1, "b", 1], [1, "", 0]
-    ],
-    "states_labels": ["A", "B"]
-}
-```
-Состояния нумеруются целыми числами, начиная с нуля.   
-Поле `"state_transition_function"` задает функцию перехода и содержит тройки вида: `[начальное состояние, символ перехода, итоговое состояние]`. Переход по пустому символу задается как `[q1, "", q2]`. Не обязательно для каждого символа алфавита описывать переход, при необходимости, программа сама добавит стоковую вершину, чтобы сделать автомат полным. Так же автомат не обязан быть детерминированным.    
-Список `"final_states"` может быть пустым. Поля `"alphabet"`, `"states_count"` и `"states_labels"` необязательны.
+(https://github.com/bagar0x60/automata-hw/wiki/%D0%9E%D0%BF%D0%B8%D1%81%D0%B0%D0%BD%D0%B8%D0%B5-%D1%84%D0%BE%D1%80%D0%BC%D0%B0%D1%82%D0%B0-%D1%85%D1%80%D0%B0%D0%BD%D0%B5%D0%BD%D0%B8%D1%8F-%D0%B0%D0%B2%D1%82%D0%BE%D0%BC%D0%B0%D1%82%D0%B0)
 
-## Минимизация (ДЗ 2)
+## Запуск скрипта
+(https://github.com/bagar0x60/automata-hw/wiki/%D0%97%D0%B0%D0%BF%D1%83%D1%81%D0%BA-HW2,-HW3)
+
+## Как работать с программой
+
 Описание конечных автоматов хранится в `json`. Чтобы минимизировать автомат, необходимо запустить скрипт `HW2/src/minimizer.py`:
 ```bash
 cd /HW2/src
@@ -45,7 +22,16 @@ python minimizer.py ../3/test0.json ../3/test1.json ../3/test3.json
 
 В папке `HW2/3` содержатся примеры атоматов для тестирования минимизации. Автомат `HW2/3/example.json` - это автомат из примера к 3 заданию.
 
-## Детерминизация (ДЗ 3)
+# Детерминизация (ДЗ 3)
+
+## Описание формата хранения автомата
+(https://github.com/bagar0x60/automata-hw/wiki/%D0%9E%D0%BF%D0%B8%D1%81%D0%B0%D0%BD%D0%B8%D0%B5-%D1%84%D0%BE%D1%80%D0%BC%D0%B0%D1%82%D0%B0-%D1%85%D1%80%D0%B0%D0%BD%D0%B5%D0%BD%D0%B8%D1%8F-%D0%B0%D0%B2%D1%82%D0%BE%D0%BC%D0%B0%D1%82%D0%B0)
+
+## Запуск скрипта
+(https://github.com/bagar0x60/automata-hw/wiki/%D0%97%D0%B0%D0%BF%D1%83%D1%81%D0%BA-HW2,-HW3)
+
+## Как работать с программой
+
 Описание конечных автоматов хранится в `json`. Чтобы детерминизировать автомат, необходимо запустить скрипт `HW3/src/determinizer.py`:
 ```bash
 cd /HW3/src
@@ -61,3 +47,59 @@ python determinizer.py ../2/test0.json ../2/test1.json ../2/test3.json
 В папке `HW3/2` содержатся примеры атоматов для тестирования детерминизации. Автомат `HW3/2/example.json` - это автомат из примера ко 2 заданию.
 
 
+
+# Контестно свободные языки. Нормализация, CYK (ДЗ 4)
+
+## Запуск программы
+
+Для запуска необходимо иметь компилятор языка fortran, например gfortan. 
+
+Установка на убунту (согласно stack overfolow)
+```bash
+# apt-get install gfortran
+```
+
+Весь код находится в папке `HW4/src`. 
+
+Чтобы скомпилировать все, что надо, запустите скрипт `build.sh` 
+
+```bash
+cd HW4/src
+./build.sh
+```
+
+Или вручную
+```bash
+gfortran 1_is_empty.f95 cfgrammar.f95 parse_tools.f95 -o 1_is_empty.out
+gfortran 2_normalizer.f95 cfgrammar.f95 parse_tools.f95 -o 2_normalizer.out
+gfortran 3_cyk.f95 cfgrammar.f95 parse_tools.f95 -o 3_cyk.out
+```
+
+## Как работать с программой
+
+### 1. Проверка пустоты
+
+Программа для проверки пустоты `HW4/src/1_is_empty.out`. Данные для тестирования лежат в папке `HW4/1`. Пример запуска:
+```bash
+cd HW4/src
+./1_is_empty.out ../1/grammar_1.txt
+```
+Программа выведет `empty`.
+
+### 2. Преобразование в нормальную форму Хомского
+
+Программа для преобразования `HW4/src/2_normalizer.out`. Данные для тестирования лежат в папке `HW4/2`. Пример запуска:
+```bash
+cd HW4/src
+./2_normalizer.out ../2/grammar_1.txt
+```
+Программа создаст в папке `../2` файл `grammar_1_normalized.txt`.
+
+### 3. CYK
+
+Программа для этого пункта `HW4/src/3_cyk.out`. Данные для тестирования лежат в папке `HW4/3`. Пример запуска:
+```bash
+cd HW4/src
+./3_cyk.out ../3/grammar_1.txt ../3/text_1.txt
+```
+Программа создаст в папке `../3` файл `grammar_1_normalized.txt`, `grammar_1_table.csv` и `grammar_1_tree.txt`.
