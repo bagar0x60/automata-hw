@@ -32,28 +32,28 @@ class ParseTree:
 
 
 @dataclass
-class AbstractSyntaxTree:
+class PEG_AST:
     node_type: NodeType
     node_content: Union[str, Operation]
-    childs: List[AbstractSyntaxTree] = field(default_factory=list)
+    childs: List[PEG_AST] = field(default_factory=list)
 
     @staticmethod
     def from_parse_tree(parsing_expression: ParseTree, 
-                        nonterminals_asts: Dict[str, AbstractSyntaxTree]) -> AbstractSyntaxTree:
+                        nonterminals_asts: Dict[str, PEG_AST]) -> PEG_AST:
         
-        def get_unit_ast(unit: ParseTree) -> AbstractSyntaxTree:
+        def get_unit_ast(unit: ParseTree) -> PEG_AST:
             if len(unit.childs) == 1:
                 term = unit.childs[0].childs[0].node_content
                 if unit.childs[0].node_content == "TERMINAL":
-                    return AbstractSyntaxTree(NodeType.TERMINAL, term)
+                    return PEG_AST(NodeType.TERMINAL, term)
                 elif unit.childs[0].node_content == "NONTERMINAL":
                     return nonterminals_asts[term]
             elif len(unit.childs) == 3 and unit.childs[1].node_content == "PARSING_EXPRESSION":
-                return AbstractSyntaxTree.from_parse_tree(unit.childs[1], nonterminals_asts)
+                return PEG_AST.from_parse_tree(unit.childs[1], nonterminals_asts)
 
-        parsing_expression_ast = AbstractSyntaxTree(NodeType.OPERATION, Operation.CHOICE, [])
+        parsing_expression_ast = PEG_AST(NodeType.OPERATION, Operation.CHOICE, [])
         for concatination in parsing_expression.childs[::2]:
-            concatination_ast = AbstractSyntaxTree(NodeType.OPERATION, Operation.SEQUENCE, [])
+            concatination_ast = PEG_AST(NodeType.OPERATION, Operation.SEQUENCE, [])
             
             for operation in concatination.childs[::2]:
                 if len(operation.childs) == 2:
@@ -62,11 +62,11 @@ class AbstractSyntaxTree:
                         prefix_operator, unit = operation.childs
                         unit_ast = get_unit_ast(unit)
                         if prefix_operator.childs[0].node_content == "!":
-                            operation_ast = AbstractSyntaxTree( NodeType.OPERATION, 
+                            operation_ast = PEG_AST( NodeType.OPERATION, 
                                                                 Operation.NOT_PREDICATE, 
                                                                 [unit_ast])
                         if prefix_operator.childs[0].node_content == "&":
-                            operation_ast = AbstractSyntaxTree( NodeType.OPERATION, 
+                            operation_ast = PEG_AST( NodeType.OPERATION, 
                                                                 Operation.AND_PREDICATE, 
                                                                 [unit_ast])
                     
@@ -74,15 +74,15 @@ class AbstractSyntaxTree:
                         unit, postfix_operator = operation.childs
                         unit_ast = get_unit_ast(unit)
                         if postfix_operator.childs[0].node_content == "*":
-                            operation_ast = AbstractSyntaxTree( NodeType.OPERATION, 
+                            operation_ast = PEG_AST( NodeType.OPERATION, 
                                                                 Operation.ZERO_OR_MORE, 
                                                                 [unit_ast])
                         if postfix_operator.childs[0].node_content == "+":
-                            operation_ast = AbstractSyntaxTree( NodeType.OPERATION, 
+                            operation_ast = PEG_AST( NodeType.OPERATION, 
                                                                 Operation.ONE_OR_MORE, 
                                                                 [unit_ast])
                         if postfix_operator.childs[0].node_content == "?":
-                            operation_ast = AbstractSyntaxTree( NodeType.OPERATION, 
+                            operation_ast = PEG_AST( NodeType.OPERATION, 
                                                                 Operation.OPTIONAL, 
                                                                 [unit_ast])
                     concatination_ast.childs.append(operation_ast)
@@ -104,7 +104,7 @@ class AbstractSyntaxTree:
 
 
 class PEG:
-    def __init__(self, peg_ast: AbstractSyntaxTree):
+    def __init__(self, peg_ast: PEG_AST):
         self._peg_ast = peg_ast
 
     def parse(self, text: str) -> ParseTree:
@@ -117,7 +117,7 @@ class PEG:
                 return None
             return parse_trees[0]
 
-    def _parse_terminal(self, text: str, pos: int, ast: AbstractSyntaxTree) -> Optional[Tuple[int, List[ParseTree]]]:
+    def _parse_terminal(self, text: str, pos: int, ast: PEG_AST) -> Optional[Tuple[int, List[ParseTree]]]:
         terminal = ast.node_content
         new_pos = pos + len(terminal)
         if text[pos:new_pos] == terminal:
@@ -207,7 +207,7 @@ class PEG:
         else:
             return (pos, [])
 
-    def _parse_recursive(self, text: str, pos: int, ast: AbstractSyntaxTree) -> Optional[Tuple[int, List[ParseTree]]]:
+    def _parse_recursive(self, text: str, pos: int, ast: PEG_AST) -> Optional[Tuple[int, List[ParseTree]]]:
         if ast.node_type is NodeType.TERMINAL:
             return self._parse_terminal(text, pos, ast)
 
@@ -247,7 +247,7 @@ class PEG:
             nonterminals.append(".")
             nonterminals.append("_eps")
 
-            nonterminals_asts = {nonterm: AbstractSyntaxTree(NodeType.NONTERMINAL, nonterm)
+            nonterminals_asts = {nonterm: PEG_AST(NodeType.NONTERMINAL, nonterm)
                                     for nonterm in nonterminals}
 
             peg_parse_ast = PEG.build_parse_ast(terminals, nonterminals)
@@ -255,8 +255,8 @@ class PEG:
        
             # dot operator "." support
             nonterminals_asts["."].childs.append(
-                AbstractSyntaxTree(NodeType.OPERATION, Operation.CHOICE, 
-                    [AbstractSyntaxTree(NodeType.TERMINAL, term) for term in terminals]
+                PEG_AST(NodeType.OPERATION, Operation.CHOICE, 
+                    [PEG_AST(NodeType.TERMINAL, term) for term in terminals]
                 )
             )
 
@@ -267,10 +267,10 @@ class PEG:
                     print(f'Incorrect parsing expresion: "{parsing_expression}"')
                     exit(1)
                 nonterminals_asts[nonterminal].childs.append(
-                    AbstractSyntaxTree.from_parse_tree(
+                    PEG_AST.from_parse_tree(
                         parsing_expression_parse_tree, nonterminals_asts)) 
 
-            peg_ast = AbstractSyntaxTree.from_parse_tree(
+            peg_ast = PEG_AST.from_parse_tree(
                     parser.parse(starting_expression), nonterminals_asts)
             if peg_ast is None:
                 print(f'Incorrect starting expresion: "{starting_expression}"')
@@ -279,7 +279,7 @@ class PEG:
             return PEG(peg_ast)
 
     @staticmethod
-    def build_parse_ast(terminals: List[str], nonterminals: List[str]) -> AbstractSyntaxTree:
+    def build_parse_ast(terminals: List[str], nonterminals: List[str]) -> PEG_AST:
         """
         PEG for parsing PEG
 
@@ -293,21 +293,21 @@ class PEG:
         NONTERMINAL -> "A" / "B" / ... / "." / "_eps"
         """
 
-        PARSING_EXPRESSION = AbstractSyntaxTree(NodeType.NONTERMINAL, "PARSING_EXPRESSION")
-        CONCATENATION = AbstractSyntaxTree(NodeType.NONTERMINAL, "CONCATENATION")
-        OPERATION = AbstractSyntaxTree(NodeType.NONTERMINAL, "OPERATION")
-        UNIT = AbstractSyntaxTree(NodeType.NONTERMINAL, "UNIT")
-        PREFIX_OPERATOR = AbstractSyntaxTree(NodeType.NONTERMINAL, "PREFIX_OPERATOR")
-        POSTFIX_OPERATOR = AbstractSyntaxTree(NodeType.NONTERMINAL, "POSTFIX_OPERATOR")
-        TERMINAL = AbstractSyntaxTree(NodeType.NONTERMINAL, "TERMINAL")
-        NONTERMINAL = AbstractSyntaxTree(NodeType.NONTERMINAL, "NONTERMINAL")
+        PARSING_EXPRESSION = PEG_AST(NodeType.NONTERMINAL, "PARSING_EXPRESSION")
+        CONCATENATION = PEG_AST(NodeType.NONTERMINAL, "CONCATENATION")
+        OPERATION = PEG_AST(NodeType.NONTERMINAL, "OPERATION")
+        UNIT = PEG_AST(NodeType.NONTERMINAL, "UNIT")
+        PREFIX_OPERATOR = PEG_AST(NodeType.NONTERMINAL, "PREFIX_OPERATOR")
+        POSTFIX_OPERATOR = PEG_AST(NodeType.NONTERMINAL, "POSTFIX_OPERATOR")
+        TERMINAL = PEG_AST(NodeType.NONTERMINAL, "TERMINAL")
+        NONTERMINAL = PEG_AST(NodeType.NONTERMINAL, "NONTERMINAL")
 
         PARSING_EXPRESSION.childs.append(
-            AbstractSyntaxTree(NodeType.OPERATION, Operation.SEQUENCE, [
+            PEG_AST(NodeType.OPERATION, Operation.SEQUENCE, [
                 CONCATENATION,
-                AbstractSyntaxTree(NodeType.OPERATION, Operation.ZERO_OR_MORE, [
-                    AbstractSyntaxTree(NodeType.OPERATION, Operation.SEQUENCE, [
-                        AbstractSyntaxTree(NodeType.TERMINAL, " / "),
+                PEG_AST(NodeType.OPERATION, Operation.ZERO_OR_MORE, [
+                    PEG_AST(NodeType.OPERATION, Operation.SEQUENCE, [
+                        PEG_AST(NodeType.TERMINAL, " / "),
                         CONCATENATION                    
                     ])
                 ])            
@@ -315,11 +315,11 @@ class PEG:
         )
 
         CONCATENATION.childs.append(
-            AbstractSyntaxTree(NodeType.OPERATION, Operation.SEQUENCE, [
+            PEG_AST(NodeType.OPERATION, Operation.SEQUENCE, [
                 OPERATION,
-                AbstractSyntaxTree(NodeType.OPERATION, Operation.ZERO_OR_MORE, [
-                    AbstractSyntaxTree(NodeType.OPERATION, Operation.SEQUENCE, [
-                        AbstractSyntaxTree(NodeType.TERMINAL, " "),
+                PEG_AST(NodeType.OPERATION, Operation.ZERO_OR_MORE, [
+                    PEG_AST(NodeType.OPERATION, Operation.SEQUENCE, [
+                        PEG_AST(NodeType.TERMINAL, " "),
                         OPERATION
                     ])
                 ])            
@@ -327,12 +327,12 @@ class PEG:
         )
 
         OPERATION.childs.append(
-            AbstractSyntaxTree(NodeType.OPERATION, Operation.CHOICE, [
-                AbstractSyntaxTree(NodeType.OPERATION, Operation.SEQUENCE, [
+            PEG_AST(NodeType.OPERATION, Operation.CHOICE, [
+                PEG_AST(NodeType.OPERATION, Operation.SEQUENCE, [
                     PREFIX_OPERATOR,
                     UNIT
                 ]),
-                AbstractSyntaxTree(NodeType.OPERATION, Operation.SEQUENCE, [
+                PEG_AST(NodeType.OPERATION, Operation.SEQUENCE, [
                     UNIT,
                     POSTFIX_OPERATOR
                 ]),
@@ -341,11 +341,11 @@ class PEG:
         )
 
         UNIT.childs.append(
-            AbstractSyntaxTree(NodeType.OPERATION, Operation.CHOICE, [
-                AbstractSyntaxTree(NodeType.OPERATION, Operation.SEQUENCE, [
-                    AbstractSyntaxTree(NodeType.TERMINAL, "("),
+            PEG_AST(NodeType.OPERATION, Operation.CHOICE, [
+                PEG_AST(NodeType.OPERATION, Operation.SEQUENCE, [
+                    PEG_AST(NodeType.TERMINAL, "("),
                     PARSING_EXPRESSION,
-                    AbstractSyntaxTree(NodeType.TERMINAL, ")")
+                    PEG_AST(NodeType.TERMINAL, ")")
                 ]),
                 TERMINAL,
                 NONTERMINAL
@@ -353,29 +353,29 @@ class PEG:
         )
 
         PREFIX_OPERATOR.childs.append(
-            AbstractSyntaxTree(NodeType.OPERATION, Operation.CHOICE, [
-                AbstractSyntaxTree(NodeType.TERMINAL, "!"),
-                AbstractSyntaxTree(NodeType.TERMINAL, "&")
+            PEG_AST(NodeType.OPERATION, Operation.CHOICE, [
+                PEG_AST(NodeType.TERMINAL, "!"),
+                PEG_AST(NodeType.TERMINAL, "&")
             ])
         )
 
         POSTFIX_OPERATOR.childs.append(
-            AbstractSyntaxTree(NodeType.OPERATION, Operation.CHOICE, [
-                AbstractSyntaxTree(NodeType.TERMINAL, "*"),
-                AbstractSyntaxTree(NodeType.TERMINAL, "+"),
-                AbstractSyntaxTree(NodeType.TERMINAL, "?")
+            PEG_AST(NodeType.OPERATION, Operation.CHOICE, [
+                PEG_AST(NodeType.TERMINAL, "*"),
+                PEG_AST(NodeType.TERMINAL, "+"),
+                PEG_AST(NodeType.TERMINAL, "?")
             ])
         )
 
         TERMINAL.childs.append(
-            AbstractSyntaxTree(NodeType.OPERATION, Operation.CHOICE, [
-                AbstractSyntaxTree(NodeType.TERMINAL, term) for term in terminals
+            PEG_AST(NodeType.OPERATION, Operation.CHOICE, [
+                PEG_AST(NodeType.TERMINAL, term) for term in terminals
             ])
         )
 
         NONTERMINAL.childs.append(
-            AbstractSyntaxTree(NodeType.OPERATION, Operation.CHOICE, [
-                AbstractSyntaxTree(NodeType.TERMINAL, term) for term in nonterminals
+            PEG_AST(NodeType.OPERATION, Operation.CHOICE, [
+                PEG_AST(NodeType.TERMINAL, term) for term in nonterminals
             ])
         )
 
