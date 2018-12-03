@@ -1,0 +1,6 @@
+S
+a b c
+S A B
+S -> &(A c) a+ B !.
+A -> a A? b
+B -> b B? c

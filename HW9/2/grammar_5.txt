@@ -1,0 +1,5 @@
+S
+if then else a b _
+S E
+E -> b
+S -> if _ E _ then _ S _ else _ S / if _ E _ then _ S / a

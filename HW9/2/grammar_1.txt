@@ -1,8 +1,8 @@
 C
-(* *) a b c
+{ } a b c
 Begin End C N Z
-Begin -> (*
-End -> *)
+Begin -> {
+End -> }
 C -> Begin N* End
 N -> C / !Begin !End Z
 Z -> (a / b / c)*

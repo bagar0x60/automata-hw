@@ -127,6 +127,9 @@ class PEG:
 
     def _parse_nonterminal(self, text, pos, ast):
         nonterminal = ast.node_content
+        if nonterminal == "_eps":
+            return (pos, [ParseTree("ε")])
+
         res = self._parse_recursive(text, pos, ast.childs[0])
         if res is None:
             return None
@@ -237,24 +240,42 @@ class PEG:
     def from_file(file_name: str) -> PEG:
         with open(file_name, 'r') as f:
             starting_expression = f.readline().strip()
-            terminals = f.readline().strip().split()
+
+            terminals = f.readline().strip().split()  
+
             nonterminals = f.readline().strip().split()
+            nonterminals.append(".")
+            nonterminals.append("_eps")
 
             nonterminals_asts = {nonterm: AbstractSyntaxTree(NodeType.NONTERMINAL, nonterm)
                                     for nonterm in nonterminals}
 
             peg_parse_ast = PEG.build_parse_ast(terminals, nonterminals)
             parser = PEG(peg_parse_ast)
+       
+            # dot operator "." support
+            nonterminals_asts["."].childs.append(
+                AbstractSyntaxTree(NodeType.OPERATION, Operation.CHOICE, 
+                    [AbstractSyntaxTree(NodeType.TERMINAL, term) for term in terminals]
+                )
+            )
 
             for production in f:
                 nonterminal, parsing_expression = production.strip().split(" -> ", 1)
                 parsing_expression_parse_tree = parser.parse(parsing_expression)
+                if parsing_expression_parse_tree is None:
+                    print(f'Incorrect parsing expresion: "{parsing_expression}"')
+                    exit(1)
                 nonterminals_asts[nonterminal].childs.append(
                     AbstractSyntaxTree.from_parse_tree(
                         parsing_expression_parse_tree, nonterminals_asts)) 
 
             peg_ast = AbstractSyntaxTree.from_parse_tree(
                     parser.parse(starting_expression), nonterminals_asts)
+            if peg_ast is None:
+                print(f'Incorrect starting expresion: "{starting_expression}"')
+                exit(1)
+
             return PEG(peg_ast)
 
     @staticmethod
@@ -262,14 +283,14 @@ class PEG:
         """
         PEG for parsing PEG
 
-        PARSING_EXPRESSION ->  CONCATENATION (" / " CONCATENATION)*
+        PARSING_EXPRESSION -> CONCATENATION (" / " CONCATENATION)*
         CONCATENATION -> OPERATION (" " OPERATION)*
         OPERATION -> PREFIX_OPERATOR UNIT / UNIT POSTFIX_OPERATOR / UNIT
         UNIT -> "(" PARSING_EXPRESSION ")" / TERMINAL / NONTERMINAL
         PREFIX_OPERATOR -> "!" / "&"
         POSTFIX_OPERATOR -> "+" / "*" / "?"
-        TERMINAL -> "a" / "b" / ... / "_eps" / "."
-        NONTERMINAL -> "A" / "B" / ...
+        TERMINAL -> "a" / "b" / ... 
+        NONTERMINAL -> "A" / "B" / ... / "." / "_eps"
         """
 
         PARSING_EXPRESSION = AbstractSyntaxTree(NodeType.NONTERMINAL, "PARSING_EXPRESSION")
@@ -359,12 +380,3 @@ class PEG:
         )
 
         return PARSING_EXPRESSION
-
-
-if __name__ == '__main__':
-    peg = PEG.from_file("/mnt/windrive/Users/bagar/Yandex.Disk/studies/University/S7/Automata/HW2/HW9/2/grammar_1.txt")
-    parse_tree = peg.parse("(*abc(*abc*)*)")
-    if parse_tree is None:
-        print("None")
-    else:
-        parse_tree.draw()
