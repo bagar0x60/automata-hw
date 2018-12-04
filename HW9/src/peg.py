@@ -246,6 +246,7 @@ class PEG:
             nonterminals = f.readline().strip().split()
             nonterminals.append(".")
             nonterminals.append("_eps")
+            nonterminals.append("STARTING_EXPRESSION")
 
             nonterminals_asts = {nonterm: PEG_AST(NodeType.NONTERMINAL, nonterm)
                                     for nonterm in nonterminals}
@@ -270,13 +271,14 @@ class PEG:
                     PEG_AST.from_parse_tree(
                         parsing_expression_parse_tree, nonterminals_asts)) 
 
-            peg_ast = PEG_AST.from_parse_tree(
+            starting_expression_ast = PEG_AST.from_parse_tree(
                     parser.parse(starting_expression), nonterminals_asts)
-            if peg_ast is None:
+            if starting_expression_ast is None:
                 print(f'Incorrect starting expresion: "{starting_expression}"')
                 exit(1)
+            nonterminals_asts["STARTING_EXPRESSION"].childs.append(starting_expression_ast)
 
-            return PEG(peg_ast)
+            return PEG(nonterminals_asts["STARTING_EXPRESSION"])
 
     @staticmethod
     def build_parse_ast(terminals: List[str], nonterminals: List[str]) -> PEG_AST:
